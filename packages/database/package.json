@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@shopsmart/connectors": "workspace:*",
     "@shopsmart/contracts": "workspace:*",
     "@shopsmart/domain": "workspace:*",
     "pg": "8.22.0",

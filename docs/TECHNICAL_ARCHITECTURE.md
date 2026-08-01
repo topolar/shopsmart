@@ -66,7 +66,7 @@ TypeScript workers
   └── notification outbox delivery
 ```
 
-Navržené první adresáře vzniknou až s první testovanou vertical slice:
+Adresáře vznikají pouze s první testovanou vertical slice; `workers/ingestion` nyní obsahuje sdílený Kaufland handler:
 
 ```text
 apps/
