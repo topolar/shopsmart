@@ -33,14 +33,11 @@ try {
     throw new Error("Generated OpenAPI is missing the normalization route.");
   }
 
-  const nextBin = resolve(
-    repositoryRoot,
-    "apps/web/node_modules/next/dist/bin/next",
-  );
+  const webLauncher = resolve(repositoryRoot, "apps/web/load-root-env.mjs");
   const web = startProcess(
     "web",
-    [nextBin, "start", "--hostname", "127.0.0.1", "--port", "3310"],
-    { SHOPSMART_API_URL: "http://127.0.0.1:8310" },
+    [webLauncher, "start", "--hostname", "127.0.0.1", "--port", "3310"],
+    {},
     resolve(repositoryRoot, "apps/web"),
   );
   const webResponse = await waitForUrl("http://127.0.0.1:3310/", web);

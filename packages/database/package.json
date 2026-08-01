@@ -7,8 +7,8 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "migration:run": "tsx src/migration-cli.ts run",
-    "migration:revert": "tsx src/migration-cli.ts revert",
+    "migration:run": "node --env-file-if-exists=../../.env --import tsx src/migration-cli.ts run",
+    "migration:revert": "node --env-file-if-exists=../../.env --import tsx src/migration-cli.ts revert",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
