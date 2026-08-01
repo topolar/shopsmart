@@ -211,7 +211,7 @@ export class TypeOrmMatchingStore {
           serviceAreaIds: rule.serviceAreaIds,
         }),
       );
-      return toWatchRule(saved);
+      return mapWatchRuleRecord(saved);
     });
   }
 
@@ -225,7 +225,7 @@ export class TypeOrmMatchingStore {
         id,
         tenantId: actorTenantId,
       });
-    return record === null ? null : toWatchRule(record);
+    return record === null ? null : mapWatchRuleRecord(record);
   }
 
   async saveMatch(
@@ -276,7 +276,7 @@ export class TypeOrmMatchingStore {
   }
 }
 
-function toWatchRule(record: WatchRuleRecord): UserWatchRule {
+export function mapWatchRuleRecord(record: WatchRuleRecord): UserWatchRule {
   return userWatchRuleSchema.parse({
     contractVersion: record.contractVersion,
     id: record.id,

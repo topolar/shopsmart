@@ -93,6 +93,14 @@ pnpm mapping:albert approve --candidate <candidate-uuid> --canonical <class-uuid
 
 `ingest:albert` načte oficiální index jednou pouze tehdy, když je alespoň jeden scope due, a každou PDF třídu nejvýše jednou za 12 hodin. Raw PDF je jen v ignorovaném `SHOPSMART_ALBERT_RAW_SNAPSHOT_DIR` a po 72 hodinách se maže. Schválení mapování okamžitě znovu zpracuje uchované PDF bez nového stažení; příkaz `reprocess` lze bezpečně zopakovat po přechodné chybě. Bez explicitního mapování vznikne pouze review kandidát; leták netvrdí skladovou dostupnost.
 
+Publikované nabídky se společně porovnají se všemi relevantními watch rules příkazem:
+
+```powershell
+pnpm match:run-once
+```
+
+Worker nespouští žádný source fetch ani job pro jednotlivého uživatele. Publikované nabídky načte jednou, watch rules omezí v PostgreSQL podle canonical product class a konečné rozhodnutí deleguje deterministickému matcheru. Výstup obsahuje pouze agregované počty včetně stabilních rejection reasons. Opakovaný nebo souběžný běh je idempotentní a neznámý retailer se odmítne fail-closed.
+
 Navazující krok je první provozní review zachycených kandidátů a podle GitHub Issues produkční Resend adapter s ověřenými webhooky.
 
 ## Vývojový workflow
