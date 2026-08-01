@@ -4,6 +4,12 @@ import { DataSource } from "typeorm";
 
 import { CreateNormalizationRecords20260801090000 } from "./migrations/20260801090000-create-normalization-records.js";
 import { CreateOfferCatalogue20260801100000 } from "./migrations/20260801100000-create-offer-catalogue.js";
+import { CreateTenantMatching20260801110000 } from "./migrations/20260801110000-create-tenant-matching.js";
+import {
+  matchRecordSchema,
+  tenantRecordSchema,
+  watchRuleRecordSchema,
+} from "./matching-store.js";
 import { normalizationRecordSchema } from "./normalization-record.js";
 import {
   canonicalProductClassRecordSchema,
@@ -28,10 +34,14 @@ export function createAppDataSource(
       canonicalProductClassRecordSchema,
       retailerProductRecordSchema,
       offerRecordSchema,
+      tenantRecordSchema,
+      watchRuleRecordSchema,
+      matchRecordSchema,
     ],
     migrations: [
       CreateNormalizationRecords20260801090000,
       CreateOfferCatalogue20260801100000,
+      CreateTenantMatching20260801110000,
     ],
     migrationsTableName: "shopsmart_migrations",
   });

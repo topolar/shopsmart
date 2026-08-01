@@ -532,7 +532,7 @@ Implementace je rozdělená do sledovatelných GitHub Issues:
 | Ohraničený AI assist s review | [#14](https://github.com/topolar/shopsmart/issues/14) |
 | Produkční připravenost a veřejná beta | [#15](https://github.com/topolar/shopsmart/issues/15) |
 
-Implementovaný kontrakt v1 pro canonical products, retailer products, offers a evidence je definovaný Zod schématy v `packages/contracts`; publikační pravidla zůstávají v deterministické doméně a TypeORM entity slouží pouze jako persistence mapping. Aktuální stav realizace a ověření je autoritativně vedený v odkazovaných Issues.
+Implementované kontrakty v1 pro canonical products, retailer products, offers, evidence a tenant-owned watch rules jsou definované Zod schématy v `packages/contracts`; publikační a matching pravidla včetně novelty keys zůstávají v deterministické doméně a TypeORM entity slouží pouze jako tenant-scoped persistence mapping. Aktuální stav realizace a ověření je autoritativně vedený v odkazovaných Issues.
 
 ### Fáze 0 — rozhodnutí a contracts
 
