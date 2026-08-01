@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import {
   matchedOfferSchema,
+  publishedOfferSchema,
   userWatchRuleSchema,
   type MatchedOffer,
   type PublishedOffer,
@@ -31,6 +32,29 @@ export type MatchableOffer = Readonly<{
   retailer: Readonly<{ id: string; name: string }>;
 }>;
 
+export type MatchingOfferFacts = Pick<
+  PublishedOffer,
+  | "canonicalProductClassId"
+  | "variantAttributes"
+  | "channel"
+  | "locality"
+  | "membership"
+  | "validity"
+  | "comparisonUnit"
+  | "unitPrices"
+  | "price"
+  | "discountPercent"
+>;
+
+export type MatchPrerequisiteDecision =
+  | { eligible: false; reason: MatchRejectionReason }
+  | {
+      eligible: true;
+      rule: UserWatchRule;
+      normalizedUnitPrice: PublishedOffer["unitPrices"][number];
+      thresholdReason: ThresholdReason;
+    };
+
 export type MatchGroup = Readonly<{
   canonicalProductClassId: string;
   comparisonUnit: MatchedOffer["normalizedUnitPrice"]["unit"];
@@ -43,32 +67,67 @@ export function matchOffer(
   candidate: MatchableOffer,
   evaluatedAt: string,
 ): MatchDecision {
+  const offer = publishedOfferSchema.parse(candidate.offer);
+  const { retailer } = candidate;
+  const prerequisite = evaluateMatchPrerequisites(
+    ruleInput,
+    offer,
+    retailer,
+    evaluatedAt,
+  );
+  if (!prerequisite.eligible) return reject(prerequisite.reason);
+  const { rule, normalizedUnitPrice, thresholdReason } = prerequisite;
+
+  const noveltyKey = createOfferNoveltyKey(offer, retailer.id);
+  return {
+    matched: true,
+    match: matchedOfferSchema.parse({
+      id: createMatchId(rule, noveltyKey),
+      tenantId: rule.tenantId,
+      watchRuleId: rule.id,
+      offerId: offer.id,
+      canonicalProductClassId: offer.canonicalProductClassId,
+      normalizedUnitPrice,
+      packagePrice: offer.price,
+      retailer,
+      thresholdReason,
+      noveltyKey,
+      evaluatedAt,
+    }),
+  };
+}
+
+export function evaluateMatchPrerequisites(
+  ruleInput: unknown,
+  offer: MatchingOfferFacts,
+  retailer: Readonly<{ id: string; name: string }>,
+  evaluatedAt: string,
+): MatchPrerequisiteDecision {
   const rule = userWatchRuleSchema.parse(ruleInput);
-  const { offer, retailer } = candidate;
 
   if (offer.canonicalProductClassId !== rule.canonicalProductClassId) {
-    return reject("CANONICAL_PRODUCT_MISMATCH");
+    return rejectPrerequisite("CANONICAL_PRODUCT_MISMATCH");
   }
   if (!hasRequiredAttributes(rule, offer)) {
-    return reject("REQUIRED_ATTRIBUTE_MISMATCH");
+    return rejectPrerequisite("REQUIRED_ATTRIBUTE_MISMATCH");
   }
   if (hasExcludedAttribute(rule, offer)) {
-    return reject("EXCLUDED_ATTRIBUTE");
+    return rejectPrerequisite("EXCLUDED_ATTRIBUTE");
   }
   if (!rule.channels.includes(offer.channel)) {
-    return reject("CHANNEL_NOT_ACCEPTED");
+    return rejectPrerequisite("CHANNEL_NOT_ACCEPTED");
   }
   if (!isLocalityReachable(rule, offer)) {
-    return reject("LOCALITY_NOT_REACHABLE");
+    return rejectPrerequisite("LOCALITY_NOT_REACHABLE");
   }
   if (!isMembershipAccepted(rule, offer)) {
-    return reject("MEMBERSHIP_NOT_ACCEPTED");
+    return rejectPrerequisite("MEMBERSHIP_NOT_ACCEPTED");
   }
   if (!isActiveAt(offer, evaluatedAt)) {
-    return reject("OFFER_NOT_ACTIVE");
+    return rejectPrerequisite("OFFER_NOT_ACTIVE");
   }
   if (offer.comparisonUnit !== rule.comparisonUnit) {
-    return reject("INCOMPATIBLE_COMPARISON_UNIT");
+    return rejectPrerequisite("INCOMPATIBLE_COMPARISON_UNIT");
   }
 
   const normalizedUnitPrice = offer.unitPrices.find(
@@ -76,7 +135,7 @@ export function matchOffer(
       unit === rule.comparisonUnit && currency === offer.price.currency,
   );
   if (!normalizedUnitPrice) {
-    return reject("CURRENCY_MISMATCH");
+    return rejectPrerequisite("CURRENCY_MISMATCH");
   }
 
   const preferred = rule.preferredRetailerIds.includes(retailer.id);
@@ -91,28 +150,17 @@ export function matchOffer(
     offer,
   );
   if (thresholdDecision === "CURRENCY_MISMATCH") {
-    return reject("CURRENCY_MISMATCH");
+    return rejectPrerequisite("CURRENCY_MISMATCH");
   }
   if (thresholdDecision === null) {
-    return reject("THRESHOLD_NOT_MET");
+    return rejectPrerequisite("THRESHOLD_NOT_MET");
   }
 
-  const noveltyKey = createOfferNoveltyKey(offer, retailer.id);
   return {
-    matched: true,
-    match: matchedOfferSchema.parse({
-      id: createMatchId(rule, noveltyKey),
-      tenantId: rule.tenantId,
-      watchRuleId: rule.id,
-      offerId: offer.id,
-      canonicalProductClassId: offer.canonicalProductClassId,
-      normalizedUnitPrice,
-      packagePrice: offer.price,
-      retailer,
-      thresholdReason: thresholdDecision,
-      noveltyKey,
-      evaluatedAt,
-    }),
+    eligible: true,
+    rule,
+    normalizedUnitPrice,
+    thresholdReason: thresholdDecision,
   };
 }
 
@@ -172,7 +220,7 @@ export function groupAndSortMatches(
 
 function hasRequiredAttributes(
   rule: UserWatchRule,
-  offer: PublishedOffer,
+  offer: MatchingOfferFacts,
 ): boolean {
   return Object.entries(rule.requiredAttributes).every(
     ([name, expected]) => offer.variantAttributes[name] === expected,
@@ -181,7 +229,7 @@ function hasRequiredAttributes(
 
 function hasExcludedAttribute(
   rule: UserWatchRule,
-  offer: PublishedOffer,
+  offer: MatchingOfferFacts,
 ): boolean {
   return Object.entries(rule.excludedAttributes).some(([name, excluded]) => {
     const actual = offer.variantAttributes[name];
@@ -191,7 +239,7 @@ function hasExcludedAttribute(
 
 function isLocalityReachable(
   rule: UserWatchRule,
-  offer: PublishedOffer,
+  offer: MatchingOfferFacts,
 ): boolean {
   if (offer.locality.kind === "physical") {
     return rule.storeIds.includes(offer.locality.storeId);
@@ -201,7 +249,7 @@ function isLocalityReachable(
 
 function isMembershipAccepted(
   rule: UserWatchRule,
-  offer: PublishedOffer,
+  offer: MatchingOfferFacts,
 ): boolean {
   if (offer.membership.kind === "none") return true;
   const membershipKey =
@@ -211,7 +259,7 @@ function isMembershipAccepted(
   return rule.acceptedMemberships.includes(membershipKey);
 }
 
-function isActiveAt(offer: PublishedOffer, evaluatedAt: string): boolean {
+function isActiveAt(offer: MatchingOfferFacts, evaluatedAt: string): boolean {
   const evaluated = Date.parse(evaluatedAt);
   const start = Date.parse(offer.validity.validFrom);
   const end =
@@ -224,8 +272,8 @@ function isActiveAt(offer: PublishedOffer, evaluatedAt: string): boolean {
 function evaluateThreshold(
   threshold: WatchThreshold,
   scope: ThresholdReason["scope"],
-  unitPrice: PublishedOffer["unitPrices"][number],
-  offer: PublishedOffer,
+  unitPrice: MatchingOfferFacts["unitPrices"][number],
+  offer: MatchingOfferFacts,
 ): ThresholdReason | "CURRENCY_MISMATCH" | null {
   if (threshold.maxUnitPrice !== null) {
     if (threshold.maxUnitPrice.currency !== unitPrice.currency) {
@@ -309,4 +357,10 @@ function compareText(left: string, right: string): number {
 
 function reject(reason: MatchRejectionReason): MatchDecision {
   return { matched: false, reason };
+}
+
+function rejectPrerequisite(
+  reason: MatchRejectionReason,
+): MatchPrerequisiteDecision {
+  return { eligible: false, reason };
 }

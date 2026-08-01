@@ -39,6 +39,13 @@ export const cs = {
   package: "Balení a cena",
   membership: "Podmínka",
   channelAndLocality: "Dostupnost",
+  availabilityEvidence: "Úroveň dostupnosti",
+  flyerApplicabilityOnly:
+    "Platnost letáku; sklad konkrétního produktu není potvrzen",
+  productStockVerified: "Sklad konkrétního produktu ověřen",
+  deliveryFee: "Poplatek za doručení",
+  minimumBasket: "Minimální objednávka",
+  fulfilmentWindow: "Okno doručení nebo vyzvednutí",
   validity: "Platnost",
   thresholdReason: "Proč vyhovuje",
   evidence: "Důkaz",

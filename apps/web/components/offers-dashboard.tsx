@@ -103,6 +103,7 @@ export function OffersDashboardView({
                     label={cs.channelAndLocality}
                     value={localityLabel(offer)}
                   />
+                  <AvailabilityFacts offer={offer} />
                   <Fact
                     label={cs.validity}
                     value={validityLabel(offer.validity)}
@@ -146,6 +147,51 @@ function Fact({ label, value }: { label: string; value: string }) {
     <>
       <dt className="font-semibold">{label}</dt>
       <dd>{value}</dd>
+    </>
+  );
+}
+
+function AvailabilityFacts({
+  offer,
+}: {
+  offer: OffersDashboardResponse["groups"][number]["offers"][number];
+}) {
+  const availability = offer.availability;
+  if (availability.kind === "physical") {
+    return (
+      <Fact label={cs.availabilityEvidence} value={cs.flyerApplicabilityOnly} />
+    );
+  }
+  return (
+    <>
+      <Fact
+        label={cs.availabilityEvidence}
+        value={`${cs.productStockVerified}: ${formatDateTime(availability.checkedAt)}`}
+      />
+      {availability.deliveryFee ? (
+        <Fact
+          label={cs.deliveryFee}
+          value={formatMoney(
+            availability.deliveryFee.amount,
+            availability.deliveryFee.currency,
+          )}
+        />
+      ) : null}
+      {availability.minimumBasket ? (
+        <Fact
+          label={cs.minimumBasket}
+          value={formatMoney(
+            availability.minimumBasket.amount,
+            availability.minimumBasket.currency,
+          )}
+        />
+      ) : null}
+      {availability.fulfilmentWindow ? (
+        <Fact
+          label={cs.fulfilmentWindow}
+          value={availability.fulfilmentWindow}
+        />
+      ) : null}
     </>
   );
 }

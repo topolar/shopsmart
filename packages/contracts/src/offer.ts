@@ -74,17 +74,21 @@ export const membershipConditionSchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
+export const physicalOfferLocalitySchema = z.object({
+  kind: z.literal("physical"),
+  storeId: z.uuid(),
+  applicability: z.enum(["store", "region", "national"]),
+});
+
+export const onlineOfferLocalitySchema = z.object({
+  kind: z.literal("online"),
+  serviceAreaId: z.uuid(),
+  fulfilment: z.enum(["delivery", "pickup"]),
+});
+
 export const offerLocalitySchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("physical"),
-    storeId: z.uuid(),
-    applicability: z.enum(["store", "region", "national"]),
-  }),
-  z.object({
-    kind: z.literal("online"),
-    serviceAreaId: z.uuid(),
-    fulfilment: z.enum(["delivery", "pickup"]),
-  }),
+  physicalOfferLocalitySchema,
+  onlineOfferLocalitySchema,
 ]);
 
 export const offerAvailabilitySchema = z.discriminatedUnion("kind", [
@@ -98,6 +102,10 @@ export const offerAvailabilitySchema = z.discriminatedUnion("kind", [
     stockStatus: z.literal("in-stock"),
     checkedAt: z.iso.datetime(),
     fulfilmentDetails: nonEmptyTextSchema,
+    deliveryFee: moneySchema.nullable().optional(),
+    minimumBasket: moneySchema.nullable().optional(),
+    fulfilmentWindow: nonEmptyTextSchema.nullable().optional(),
+    stockEvidenceUrl: httpUrlSchema.optional(),
   }),
 ]);
 
@@ -159,12 +167,14 @@ const offerFields = {
   parserVersion: nonEmptyTextSchema,
 } as const;
 
-export const qualifiedOfferSchema = z
-  .object({ ...offerFields, status: z.literal("qualified") })
+export const offerBaseSchema = z.object(offerFields);
+
+export const qualifiedOfferSchema = offerBaseSchema
+  .extend({ status: z.literal("qualified") })
   .superRefine(validateChannelLocality);
 
-export const publishedOfferSchema = z
-  .object({ ...offerFields, status: z.literal("published") })
+export const publishedOfferSchema = offerBaseSchema
+  .extend({ status: z.literal("published") })
   .superRefine(validateChannelLocality);
 
 function validateChannelLocality(

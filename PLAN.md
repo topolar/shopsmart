@@ -444,6 +444,8 @@ Matcher je deterministický:
 
 Drahá lokalizace a stock check se spouštějí pouze pro kandidáta, který už prošel identitou a cenovým filtrem. Bez aktuálních kandidat-specifických podmínek se match nepublikuje.
 
+Implementovaný generický kontrakt tuto hranici dělí na `prequalifyOnlineCandidate` a `confirmOnlineCandidate`. Service-area podpora má samostatný TypeORM TTL cache záznam s hrubou lokalitou; produktový stock se do statického cache neukládá. Potvrzení selže uzavřeně při jiném service area/fulfilment, neaktuální nebo budoucí kontrole, chybějícím stocku, nekompatibilní měně košíkových podmínek či nedostatečné evidenci. Live napojení zůstává závislé na schváleném zdroji #5/#8.
+
 ### 6.4 Notifikace
 
 - renderer pracuje pouze s validovanými match záznamy;
@@ -533,7 +535,7 @@ Implementace je rozdělená do sledovatelných GitHub Issues:
 | Ohraničený AI assist s review | [#14](https://github.com/topolar/shopsmart/issues/14) |
 | Produkční připravenost a veřejná beta | [#15](https://github.com/topolar/shopsmart/issues/15) |
 
-Implementované kontrakty v1 pro canonical products, retailer products, offers, evidence, tenant-owned watch rules, onboarding, dashboard, notifikace a connector operations jsou definované Zod schématy v `packages/contracts`; publikační, matching, grouping, sorting, TTL, early-refresh a backoff pravidla zůstávají v deterministické doméně a TypeORM entity slouží pouze jako persistence mapping. Databázově validované Better Auth sessions chrání onboarding i offers API. Dashboard zobrazuje pouze znovu validované published records a odděluje nekompatibilní jednotky. PostgreSQL connector jobs používají `FOR UPDATE SKIP LOCKED`, explicitní coverage manifesty a auditované retry/rate-limit/quarantine/dead-letter stavy. Aktuální stav realizace a ověření je autoritativně vedený v odkazovaných Issues.
+Implementované kontrakty v1 pro canonical products, retailer products, offers, evidence, tenant-owned watch rules, onboarding, dashboard, notifikace, connector operations a online stock validation jsou definované Zod schématy v `packages/contracts`; publikační, matching, grouping, sorting, TTL, early-refresh, backoff a candidate-first online pravidla zůstávají v deterministické doméně a TypeORM entity slouží pouze jako persistence mapping. Databázově validované Better Auth sessions chrání onboarding i offers API. Dashboard zobrazuje pouze znovu validované published records, odděluje nekompatibilní jednotky a rozlišuje letákovou aplikovatelnost od ověřeného online stocku. PostgreSQL connector jobs používají `FOR UPDATE SKIP LOCKED`, explicitní coverage manifesty a auditované retry/rate-limit/quarantine/dead-letter stavy. Aktuální stav realizace a ověření je autoritativně vedený v odkazovaných Issues.
 
 ### Fáze 0 — rozhodnutí a contracts
 
