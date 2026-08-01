@@ -4,7 +4,7 @@ ShopSmart je plánovaná veřejná služba pro personalizované hlídání náku
 
 ## Stav
 
-Repozitář nyní obsahuje dokumentační a architektonický základ. Aplikace zatím není implementována.
+Repozitář obsahuje dokumentační a architektonický základ a první testovaný TypeScript vertical slice: deterministickou normalizaci jednotkové ceny sdílenou přes Zod kontrakt, Fastify API, TypeORM/PostgreSQL persistence a tenký Next.js/Tailwind web/BFF.
 
 - [`PLAN.md`](PLAN.md) — podrobný plán, praktická zjištění z osobního pilotu, doménový model, architektura, roadmapa a hranice AI.
 - [`docs/TECHNICAL_ARCHITECTURE.md`](docs/TECHNICAL_ARCHITECTURE.md) — zvolený local-first stack, porty, Docker/PostgreSQL, Cloudflare Tunnel a cesta k produkčnímu hostingu.
@@ -20,9 +20,46 @@ AI je pomocná vrstva pro volný text, nestrukturované letáky a nejednoznačn�
 
 Jde o veřejný repozitář. Nevkládejte do něj osobní e-maily, soukromé adresy, cookies, retailer účty, API klíče ani produkční snapshoty. Každá zveřejněná nabídka musí mít dohledatelný zdroj a údaj o čerstvosti.
 
+## Lokální vývoj
+
+Požadavky:
+
+- Node.js `24.18.0` (soubor `.node-version`);
+- pnpm `11.10.0`;
+- Docker s Docker Compose.
+
+Zkopírujte `.env.example` do ignorovaného `.env` a nahraďte oba password placeholdery stejným náhodným lokálním heslem. Potom:
+
+```powershell
+pnpm install
+docker compose up -d postgres
+pnpm db:migrate
+```
+
+API a web spusťte v samostatných terminálech:
+
+```powershell
+pnpm dev:api
+pnpm dev:web
+```
+
+Web naslouchá na `http://127.0.0.1:3310`, privátní API na `http://127.0.0.1:8310` a PostgreSQL pouze na `127.0.0.1:57432`. OpenAPI dokument je dostupný na `http://127.0.0.1:8310/api/v1/openapi.json`.
+
+Kontroly lokálního řezu:
+
+```powershell
+pnpm test
+pnpm typecheck
+pnpm lint
+pnpm build
+pnpm smoke
+```
+
+`pnpm smoke` vyžaduje běžící PostgreSQL, aplikované migrace a `DATABASE_URL` v prostředí.
+
 ## Další krok
 
-Potvrdit otevřená rozhodnutí ve fázi 0 plánu a poté implementovat jedinou testovanou end-to-end vertical slice namísto prázdného scaffoldingu.
+Rozšiřovat první řez podle navazujících GitHub Issues: kanonické offer/evidence kontrakty, deterministický matching, první povolený shared-ingestion zdroj, onboarding, dashboard a přesně jednou potvrzené notifikace.
 
 ## Vývojový workflow
 

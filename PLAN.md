@@ -515,6 +515,23 @@ První MVP může fungovat bez generativní AI, pokud začne strukturovaným kat
 
 ## 9. MVP roadmapa
 
+Implementace je rozdělená do sledovatelných GitHub Issues:
+
+| Rozsah plánu | Issue |
+|---|---|
+| Technický TypeScript/PostgreSQL vertical slice | [#3](https://github.com/topolar/shopsmart/issues/3) |
+| První region a povolený retailer zdroj | [#5](https://github.com/topolar/shopsmart/issues/5) |
+| Kanonické product/offer/evidence kontrakty | [#6](https://github.com/topolar/shopsmart/issues/6) |
+| Deterministický matching a tenant isolation | [#7](https://github.com/topolar/shopsmart/issues/7) |
+| Shared ingestion a snapshot pipeline | [#8](https://github.com/topolar/shopsmart/issues/8) |
+| Onboarding, lokalita, obchody a loyalty | [#9](https://github.com/topolar/shopsmart/issues/9) |
+| Evidence-backed dashboard | [#10](https://github.com/topolar/shopsmart/issues/10) |
+| Transakční outbox a e-mailové doručení | [#11](https://github.com/topolar/shopsmart/issues/11) |
+| Robustní scheduling, freshness a connector health | [#12](https://github.com/topolar/shopsmart/issues/12) |
+| Online service area a product stock | [#13](https://github.com/topolar/shopsmart/issues/13) |
+| Ohraničený AI assist s review | [#14](https://github.com/topolar/shopsmart/issues/14) |
+| Produkční připravenost a veřejná beta | [#15](https://github.com/topolar/shopsmart/issues/15) |
+
 ### Fáze 0 — rozhodnutí a contracts
 
 - potvrdit stack a licenci;

@@ -1,0 +1,26 @@
+{
+  "name": "@shopsmart/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "migration:run": "tsx src/migration-cli.ts run",
+    "migration:revert": "tsx src/migration-cli.ts revert",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@shopsmart/contracts": "workspace:*",
+    "@shopsmart/domain": "workspace:*",
+    "pg": "8.22.0",
+    "reflect-metadata": "0.2.2",
+    "typeorm": "1.1.0"
+  },
+  "devDependencies": {
+    "@types/pg": "8.15.5",
+    "tsx": "4.23.1",
+    "typescript": "6.0.3"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "@shopsmart/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/start.ts",
+    "start": "tsx src/start.ts",
+    "test": "vitest run src/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/swagger": "9.8.1",
+    "@fastify/type-provider-zod": "1.0.0",
+    "@shopsmart/contracts": "workspace:*",
+    "@shopsmart/database": "workspace:*",
+    "@shopsmart/domain": "workspace:*",
+    "fastify": "5.11.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "tsx": "4.23.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

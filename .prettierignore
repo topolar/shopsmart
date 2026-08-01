@@ -1,0 +1,5 @@
+.agents/
+.github/
+*.md
+docs/
+pnpm-lock.yaml
