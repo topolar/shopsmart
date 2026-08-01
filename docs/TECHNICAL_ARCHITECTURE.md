@@ -159,7 +159,7 @@ Obecná online obslužnost používá stejnou `static_context_cache`, ale pod na
 
 Transakční notification outbox odděluje provider acceptance od potvrzeného doručení. Novelty event se označí jako notified pouze transakcí vyvolanou ověřeným delivery webhookem; přijatý send request čeká ve stavu `awaiting-confirmation`. Prvním plánovaným produkčním adapterem je Resend, podrobnosti a srovnání jsou v [ADR 0003](decisions/0003-transactional-email-provider.md).
 
-Raw snapshoty mohou být lokálně v ignorovaném datovém adresáři s metadaty v databázi. Před produkcí se přesunou do S3-compatible object storage s retention policy.
+Raw snapshoty mohou být lokálně v ignorovaném datovém adresáři s metadaty v databázi. Před produkcí se přesunou do šifrovaného S3-compatible object storage s omezeným přístupem a konektorovou retention policy. První Kaufland scope podle [`ADR 0004`](decisions/0004-first-retailer-source.md) maže raw HTML po 72 hodinách; hash, HTTP metadata a normalizovaná fakta zůstávají. Testy používají syntetické fixtures, nikoli kopii živé stránky.
 
 ## 7. Web a lokalizace
 
