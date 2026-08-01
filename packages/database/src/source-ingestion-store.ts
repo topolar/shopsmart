@@ -6,6 +6,9 @@ import {
   ALBERT_RETAILER_ID,
   type AlbertSnapshotResult,
   ALBERT_SUPERMARKET_SCOPE,
+  GLOBUS_BRNO_SCOPE,
+  type GlobusProductMapping,
+  type GlobusSnapshotResult,
   KAUFLAND_PRAHA_VYPICH_SCOPE,
   type KauflandProductMapping,
   type KauflandSnapshotResult,
@@ -28,7 +31,9 @@ export class SourceSnapshotRecord {
   contentHash!: string;
   parserVersion!: string;
   parseStatus!:
-    KauflandSnapshotResult["status"] | AlbertSnapshotResult["status"];
+    | KauflandSnapshotResult["status"]
+    | AlbertSnapshotResult["status"]
+    | GlobusSnapshotResult["status"];
   etag!: string | null;
   lastModified!: string | null;
   rawStorageKey!: string | null;
@@ -199,6 +204,32 @@ export class TypeOrmSourceIngestionStore {
         where: { sourceScopeKey },
         order: { retrievedAt: "DESC", createdAt: "DESC" },
       });
+    return snapshot
+      ? {
+          contentHash: snapshot.contentHash.trim(),
+          parserVersion: snapshot.parserVersion,
+          etag: snapshot.etag,
+          lastModified: snapshot.lastModified,
+          rawStorageKey: snapshot.rawStorageKey,
+          sourceUrl: snapshot.sourceUrl,
+          retrievedAt: snapshot.retrievedAt.toISOString(),
+          httpStatus: snapshot.httpStatus,
+        }
+      : null;
+  }
+
+  async latestRetainedRetrieval(sourceScopeKey: string) {
+    const snapshot = await this.dataSource
+      .getRepository(SourceSnapshotRecord)
+      .createQueryBuilder("snapshot")
+      .where("snapshot.source_scope_key = :sourceScopeKey", {
+        sourceScopeKey,
+      })
+      .andWhere("snapshot.raw_storage_key IS NOT NULL")
+      .andWhere("snapshot.raw_deleted_at IS NULL")
+      .orderBy("snapshot.retrieved_at", "DESC")
+      .addOrderBy("snapshot.created_at", "DESC")
+      .getOne();
     return snapshot
       ? {
           contentHash: snapshot.contentHash.trim(),
@@ -453,6 +484,126 @@ export class TypeOrmSourceIngestionStore {
     });
   }
 
+  async persistGlobus(
+    result: GlobusSnapshotResult,
+    options: PersistOptions,
+  ): Promise<Readonly<{ snapshotId: string }>> {
+    validateStorageKey(options.rawStorageKey);
+    if (result.retrieval.sourceScopeKey !== GLOBUS_BRNO_SCOPE.key) {
+      throw new Error(
+        "Globus result does not match the approved source scope.",
+      );
+    }
+    return this.dataSource.transaction(async (manager) => {
+      const snapshot = await manager.getRepository(SourceSnapshotRecord).save({
+        sourceScopeKey: result.retrieval.sourceScopeKey,
+        sourceUrl: result.retrieval.sourceUrl,
+        retrievedAt: new Date(result.retrieval.retrievedAt),
+        httpStatus: result.retrieval.httpStatus,
+        contentHash: result.retrieval.contentHash,
+        parserVersion: result.retrieval.parserVersion,
+        parseStatus: result.status,
+        etag: result.retrieval.etag,
+        lastModified: result.retrieval.lastModified,
+        rawStorageKey: options.rawStorageKey,
+        rawDeleteAt: new Date(result.retrieval.rawDeleteAt),
+        rawDeletedAt: null,
+      });
+
+      if (result.status !== "unchanged") {
+        await manager.getRepository(StoreRecord).upsert(
+          {
+            id: GLOBUS_BRNO_SCOPE.storeId,
+            retailerId: GLOBUS_BRNO_SCOPE.retailerId,
+            officialName: GLOBUS_BRNO_SCOPE.storeName,
+            city: GLOBUS_BRNO_SCOPE.city,
+            sourceUrl: GLOBUS_BRNO_SCOPE.storeUrl,
+          },
+          ["id"],
+        );
+      }
+      if (result.retailerProducts.length > 0) {
+        await manager.getRepository(RetailerProductRecord).upsert(
+          result.retailerProducts.map((product) => ({
+            ...product,
+            contractVersion: "1" as const,
+          })),
+          ["retailerId", "externalId"],
+        );
+      }
+      if (result.offers.length > 0) {
+        await manager.getRepository(OfferRecord).save(
+          result.offers.map((offer) => ({
+            id: offer.id,
+            contractVersion: offer.contractVersion,
+            retailerProductId: offer.retailerProductId,
+            sourceScopeId: offer.sourceScopeId,
+            canonicalProductClassId: offer.canonicalProductClassId,
+            exactName: offer.exactName,
+            variantAttributes: offer.variantAttributes,
+            package: offer.package,
+            priceAmount: offer.price.amount,
+            currency: offer.price.currency,
+            regularPriceAmount: offer.regularPrice?.amount ?? null,
+            discountPercent:
+              offer.discountPercent === null
+                ? null
+                : offer.discountPercent.toFixed(2),
+            comparisonUnit: offer.comparisonUnit,
+            unitPrices: offer.unitPrices,
+            membership: offer.membership,
+            channel: offer.channel,
+            locality: offer.locality,
+            availability: offer.availability,
+            validity: offer.validity,
+            evidence: offer.evidence,
+            parserVersion: offer.parserVersion,
+            status: offer.status,
+          })),
+        );
+      }
+      if (result.quarantines.length > 0) {
+        await manager.getRepository(QuarantinedSourceCandidateRecord).save(
+          result.quarantines.map((candidate) => ({
+            snapshotId: snapshot.id,
+            sourceScopeKey: result.retrieval.sourceScopeKey,
+            externalId: candidate.externalId,
+            exactName: candidate.exactName,
+            reasonCode: candidate.reasonCode,
+          })),
+        );
+      }
+      const unmapped = result.quarantines.filter(
+        (candidate) =>
+          candidate.reasonCode === "UNMAPPED_PRODUCT" &&
+          candidate.externalId !== null &&
+          candidate.exactName !== null,
+      );
+      for (const candidate of unmapped) {
+        await manager.query(
+          `INSERT INTO "retailer_product_mapping_candidates" (
+             "source_scope_key", "retailer_id", "external_id", "exact_name",
+             "source_snapshot_id", "status"
+           ) VALUES ($1, $2, $3, $4, $5, 'pending')
+           ON CONFLICT ("retailer_id", "external_id") DO UPDATE SET
+             "exact_name" = EXCLUDED."exact_name",
+             "source_snapshot_id" = EXCLUDED."source_snapshot_id",
+             "updated_at" = CURRENT_TIMESTAMP`,
+          [
+            GLOBUS_BRNO_SCOPE.key,
+            GLOBUS_BRNO_SCOPE.retailerId,
+            candidate.externalId,
+            candidate.declaredPackage
+              ? `${candidate.exactName} — ${candidate.declaredPackage}`
+              : candidate.exactName,
+            snapshot.id,
+          ],
+        );
+      }
+      return { snapshotId: snapshot.id };
+    });
+  }
+
   async markRawDeleted(storageKeys: readonly string[], deletedAt: string) {
     if (storageKeys.length === 0) return;
     for (const storageKey of storageKeys) validateStorageKey(storageKey);
@@ -493,6 +644,15 @@ export class TypeOrmSourceIngestionStore {
       .getRepository(RetailerProductMappingCandidateRecord)
       .find({
         where: { sourceScopeKey: scope.key, status: "pending" },
+        order: { createdAt: "ASC", externalId: "ASC" },
+      });
+  }
+
+  async listPendingGlobusMappings() {
+    return this.dataSource
+      .getRepository(RetailerProductMappingCandidateRecord)
+      .find({
+        where: { sourceScopeKey: GLOBUS_BRNO_SCOPE.key, status: "pending" },
         order: { createdAt: "ASC", externalId: "ASC" },
       });
   }
@@ -616,6 +776,28 @@ export class TypeOrmSourceIngestionStore {
       canonicalProductClassId: row.canonical_product_class_id as string,
       comparisonUnit:
         row.comparison_unit as AlbertProductMapping["comparisonUnit"],
+      variantAttributes: row.variant_attributes as Record<string, string>,
+    }));
+  }
+
+  async loadApprovedGlobusMappings(): Promise<GlobusProductMapping[]> {
+    const rows = (await this.dataSource.query(
+      `SELECT candidate."external_id", candidate."canonical_product_class_id",
+              candidate."variant_attributes", canonical."comparison_unit"
+       FROM "retailer_product_mapping_candidates" candidate
+       INNER JOIN "canonical_product_classes" canonical
+         ON canonical."id" = candidate."canonical_product_class_id"
+       WHERE candidate."source_scope_key" = $1
+         AND candidate."retailer_id" = $2
+         AND candidate."status" = 'approved'
+       ORDER BY candidate."external_id"`,
+      [GLOBUS_BRNO_SCOPE.key, GLOBUS_BRNO_SCOPE.retailerId],
+    )) as Array<Record<string, unknown>>;
+    return rows.map((row) => ({
+      externalId: row.external_id as string,
+      canonicalProductClassId: row.canonical_product_class_id as string,
+      comparisonUnit:
+        row.comparison_unit as GlobusProductMapping["comparisonUnit"],
       variantAttributes: row.variant_attributes as Record<string, string>,
     }));
   }

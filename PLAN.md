@@ -336,6 +336,8 @@ První schválený scope je oficiální veřejná stránka `Kaufland Praha-Vypic
 
 Druhý schválený český source je oficiální Albert index supermarketových a hypermarketových letáků s přímo odkazovanými PDF. Sdílený fetch, poziční TypeScript extrakce, 12hodinové minimum, 72hodinová raw retention a hranice store-type aplikovatelnosti jsou v [`ADR 0005`](docs/decisions/0005-albert-leaflet-source.md). Ani tento leták není důkazem aktuálního skladového kusu.
 
+Třetí schválený scope je pouze featured-offer sekce oficiální stránky `Globus Brno`. [`ADR 0006`](docs/decisions/0006-globus-brno-featured-offers.md) omezuje shared HTML fetch na `/brno/letaky`, zakazuje následování roboty vyloučených produktových a úplných nabídkových cest a odděluje veřejné ceny od cen `Můj Globus`. Jde opět jen o fyzickou letákovou aplikovatelnost, nikoli sklad.
+
 ---
 
 ## 5. Doménový model
@@ -544,8 +546,9 @@ Implementace je rozdělená do sledovatelných GitHub Issues:
 | Sdílený matching fan-out worker | [#41](https://github.com/topolar/shopsmart/issues/41) |
 | Přihlášené založení watch rule z českého katalogu | [#43](https://github.com/topolar/shopsmart/issues/43) |
 | Agregované plánování matchů do notification outboxu | [#45](https://github.com/topolar/shopsmart/issues/45) |
+| Globus Brno featured-offer ingestion | [#47](https://github.com/topolar/shopsmart/issues/47) |
 
-Implementované kontrakty v1 pro canonical products, retailer products, offers, evidence, tenant-owned watch rules, onboarding, dashboard, notifikace, connector operations a online stock validation jsou definované Zod schématy v `packages/contracts`; publikační, matching, grouping, sorting, TTL, early-refresh, backoff a candidate-first online pravidla zůstávají v deterministické doméně a TypeORM entity slouží pouze jako persistence mapping. Databázově validované Better Auth sessions chrání onboarding i offers API. Dashboard zobrazuje pouze znovu validované published records, odděluje nekompatibilní jednotky a rozlišuje letákovou aplikovatelnost od ověřeného online stocku. PostgreSQL connector jobs používají `FOR UPDATE SKIP LOCKED`, explicitní coverage manifesty a auditované retry/rate-limit/quarantine/dead-letter stavy. Kaufland scope má TypeScript HTML fetch/parser; navazující Albert scope sdíleně obsluhuje oficiální supermarket/hypermarket index a přímo odkazované PDF pomocí TypeScript `unpdf`, poziční geometrie a samostatné review fronty. Oba konektory používají hash a HTTP-validator deduplikaci, 72hodinový raw snapshot store, deterministickou karanténu, transakční TypeORM persistence, lokální run-once command a immutable review mapování. Fyzická letáková aplikovatelnost výslovně netvrdí skladovou dostupnost. Aktuální stav realizace a ověření je autoritativně vedený v odkazovaných Issues.
+Implementované kontrakty v1 pro canonical products, retailer products, offers, evidence, tenant-owned watch rules, onboarding, dashboard, notifikace, connector operations a online stock validation jsou definované Zod schématy v `packages/contracts`; publikační, matching, grouping, sorting, TTL, early-refresh, backoff a candidate-first online pravidla zůstávají v deterministické doméně a TypeORM entity slouží pouze jako persistence mapping. Databázově validované Better Auth sessions chrání onboarding i offers API. Dashboard zobrazuje pouze znovu validované published records, odděluje nekompatibilní jednotky a rozlišuje letákovou aplikovatelnost od ověřeného online stocku. PostgreSQL connector jobs používají `FOR UPDATE SKIP LOCKED`, explicitní coverage manifesty a auditované retry/rate-limit/quarantine/dead-letter stavy. Kaufland a Globus Brno scope mají TypeScript HTML fetch/parser; Albert scope sdíleně obsluhuje oficiální supermarket/hypermarket index a přímo odkazované PDF pomocí TypeScript `unpdf` a poziční geometrie. Všechny tři konektory používají hash a HTTP-validator deduplikaci, 72hodinový raw snapshot store, deterministickou karanténu, transakční TypeORM persistence, lokální run-once command a immutable review mapování. Globus navíc nikdy nenásleduje roboty zakázané produktové cesty a cenu `Můj Globus` nesmí vydat za veřejnou. Fyzická letáková aplikovatelnost výslovně netvrdí skladovou dostupnost. Aktuální stav realizace a ověření je autoritativně vedený v odkazovaných Issues.
 
 Shared matching fan-out z issue #41 načítá published offers jednou za běh a watch rules omezuje databázovým filtrem na přítomné canonical product classes. Finální atributové, cenové, membership, locality, validity a unit rozhodnutí vždy provádí společný deterministický `matchOffer`. TypeORM zápis používá stabilní novelty a idempotentní konflikt handling, takže souběžné běhy nevytvoří duplicity ani nepřenesou výsledek mezi tenanty. Lokální `pnpm match:run-once` vypisuje pouze agregované provozní počty a rejection reasons; neprovádí source fetch ani nevytváří syntetické tenanty.
 
@@ -557,7 +560,7 @@ Digest planner z issue #45 načítá pouze dosud nezařazené persisted matches 
 
 - potvrdit stack a licenci;
 - definovat canonical schemas a evidence levels;
-- první český oficiální source scope byl vybrán v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md) a Albert letákové třídy v [`ADR 0005`](docs/decisions/0005-albert-leaflet-source.md); každý další retailer vyžaduje vlastní source review;
+- první český oficiální source scope byl vybrán v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md), Albert letákové třídy v [`ADR 0005`](docs/decisions/0005-albert-leaflet-source.md) a Globus Brno featured nabídky v [`ADR 0006`](docs/decisions/0006-globus-brno-featured-offers.md); každý další retailer vyžaduje vlastní source review;
 - threat model a PII klasifikace;
 - fixture policy;
 - CI skeleton vytvořit až s první testovanou vertical slice.
@@ -671,14 +674,14 @@ Sledovat minimálně:
 Před implementací je potřeba rozhodnout:
 
 - právní/licenční režim repozitáře;
-- které další zdroje po Kaufland a Albert scope splní source review;
+- které další zdroje po Kaufland, Albert a Globus Brno scope splní source review;
 - konkrétní generátor OpenAPI z TypeScript kontraktů;
 - okamžik a konkrétní queue technologie po vyhodnocení PostgreSQL job leasingu;
 - produkční konfigurace vybraného Resend adapteru, domény a webhooku (výběr viz [`ADR 0003`](docs/decisions/0003-transactional-email-provider.md));
 - přesná definice „nejlepší nabídky“ pro pravidlo bez uživatelského prahu;
 - jak před veřejným doručováním přesně přiřadit Albert store-type letáky ke konkrétním pobočkám;
 - kdo a jak schvaluje AI product mappings;
-- obecná retention raw snapshotů pro další konektory; Kaufland i Albert mají 72hodinovou politiku v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md) a [`ADR 0005`](docs/decisions/0005-albert-leaflet-source.md);
+- obecná retention raw snapshotů pro další konektory; Kaufland, Albert i Globus Brno mají 72hodinovou politiku v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md), [`ADR 0005`](docs/decisions/0005-albert-leaflet-source.md) a [`ADR 0006`](docs/decisions/0006-globus-brno-featured-offers.md);
 - obchodní model bez ovlivnění nestranného řazení.
 
 ---

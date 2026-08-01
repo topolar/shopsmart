@@ -78,6 +78,22 @@ export class FileSystemRawSnapshotStore {
     return new Uint8Array(bytes);
   }
 
+  async read(storageKey: string): Promise<string> {
+    const match = /^\d{13}-([a-f0-9]{64})\.html$/.exec(storageKey);
+    if (!match) throw new Error("storageKey is not a retained HTML snapshot.");
+    const absolutePath = this.resolveStorageKey(storageKey);
+    const metadata = await lstat(absolutePath);
+    if (!metadata.isFile() || metadata.isSymbolicLink()) {
+      throw new Error("Retained snapshot is not a regular file.");
+    }
+    const bytes = await readFile(absolutePath);
+    const contentHash = createHash("sha256").update(bytes).digest("hex");
+    if (contentHash !== match[1]) {
+      throw new Error("Retained snapshot no longer matches its content hash.");
+    }
+    return bytes.toString("utf8");
+  }
+
   private async writeContent(input: {
     content: Buffer;
     extension: "html" | "pdf";

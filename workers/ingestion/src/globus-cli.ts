@@ -1,0 +1,190 @@
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
+import {
+  FileSystemRawSnapshotStore,
+  GLOBUS_BRNO_SCOPE,
+} from "@shopsmart/connectors";
+import {
+  createAppDataSource,
+  TypeOrmConnectorJobStore,
+  TypeOrmSourceIngestionStore,
+} from "@shopsmart/database";
+
+import {
+  reprocessStoredGlobusSnapshot,
+  runGlobusOperationOnce,
+} from "./globus-operation.js";
+
+type GlobusCliCommand =
+  | Readonly<{ kind: "run-once" }>
+  | Readonly<{ kind: "list-mappings" }>
+  | Readonly<{ kind: "reprocess-mappings" }>
+  | Readonly<{ kind: "list-canonical-classes" }>
+  | Readonly<{
+      kind: "approve-mapping";
+      candidateId: string;
+      canonicalProductClassId: string;
+      reviewedBy: string;
+      variantAttributes: Record<string, string>;
+    }>;
+
+const usage =
+  "Usage: run-once | mappings list | mappings reprocess | mappings classes | mappings approve --candidate <uuid> --canonical <uuid> --reviewer <id> [--attributes <json>]";
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function parseGlobusCliArgs(args: readonly string[]): GlobusCliCommand {
+  if (args.length === 1 && args[0] === "run-once") return { kind: "run-once" };
+  if (args.length === 2 && args[0] === "mappings") {
+    if (args[1] === "list") return { kind: "list-mappings" };
+    if (args[1] === "reprocess") return { kind: "reprocess-mappings" };
+    if (args[1] === "classes") return { kind: "list-canonical-classes" };
+  }
+  if (args[0] !== "mappings" || args[1] !== "approve") throw new Error(usage);
+  const values = parseFlags(args.slice(2));
+  const candidateId = values.get("candidate") ?? "";
+  const canonicalProductClassId = values.get("canonical") ?? "";
+  const reviewedBy = values.get("reviewer")?.trim() ?? "";
+  if (
+    !uuidPattern.test(candidateId) ||
+    !uuidPattern.test(canonicalProductClassId) ||
+    !reviewedBy ||
+    reviewedBy.length > 160
+  )
+    throw new Error(usage);
+  return {
+    kind: "approve-mapping",
+    candidateId,
+    canonicalProductClassId,
+    reviewedBy,
+    variantAttributes: parseAttributes(values.get("attributes") ?? "{}"),
+  };
+}
+
+async function main() {
+  const command = parseGlobusCliArgs(process.argv.slice(2));
+  const dataSource = createAppDataSource();
+  await dataSource.initialize();
+  try {
+    await dataSource.runMigrations();
+    const ingestion = new TypeOrmSourceIngestionStore(dataSource);
+    const rawSnapshots = new FileSystemRawSnapshotStore(
+      resolve(
+        process.env.SHOPSMART_GLOBUS_RAW_SNAPSHOT_DIR ??
+          "data/raw-snapshots/globus-brno",
+      ),
+    );
+    if (command.kind === "list-mappings") {
+      const candidates = await ingestion.listPendingGlobusMappings();
+      writeJson({
+        pendingCount: candidates.length,
+        candidates: candidates.map((candidate) => ({
+          id: candidate.id,
+          externalId: candidate.externalId,
+          exactName: candidate.exactName,
+          sourceSnapshotId: candidate.sourceSnapshotId,
+          firstSeenAt: candidate.createdAt.toISOString(),
+        })),
+      });
+      return;
+    }
+    if (command.kind === "list-canonical-classes") {
+      const classes = await ingestion.listKauflandCanonicalClasses();
+      writeJson({ count: classes.length, classes });
+      return;
+    }
+    if (command.kind === "reprocess-mappings") {
+      writeJson(
+        await reprocessStoredGlobusSnapshot({ ingestion, rawSnapshots }),
+      );
+      return;
+    }
+    if (command.kind === "approve-mapping") {
+      const reviewedAt = new Date().toISOString();
+      await ingestion.approveKauflandMapping({
+        ...command,
+        reviewedAt,
+        allowedSourceScopeKeys: [GLOBUS_BRNO_SCOPE.key],
+      });
+      const reprocessed = await reprocessStoredGlobusSnapshot({
+        ingestion,
+        rawSnapshots,
+      });
+      writeJson({
+        status: "approved",
+        candidateId: command.candidateId,
+        canonicalProductClassId: command.canonicalProductClassId,
+        reviewedAt,
+        reprocessed,
+      });
+      return;
+    }
+    writeJson(
+      await runGlobusOperationOnce({
+        now: new Date().toISOString(),
+        workerId: `local-globus-${process.pid}`,
+        jobs: new TypeOrmConnectorJobStore(dataSource),
+        ingestion,
+        rawSnapshots,
+      }),
+    );
+  } finally {
+    await dataSource.destroy();
+  }
+}
+
+function parseFlags(args: readonly string[]) {
+  if (args.length % 2 !== 0) throw new Error(usage);
+  const values = new Map<string, string>();
+  const allowed = ["candidate", "canonical", "reviewer", "attributes"];
+  for (let index = 0; index < args.length; index += 2) {
+    const flag = args[index];
+    const value = args[index + 1];
+    if (
+      !flag?.startsWith("--") ||
+      value === undefined ||
+      value.startsWith("--")
+    ) {
+      throw new Error(usage);
+    }
+    const name = flag.slice(2);
+    if (!allowed.includes(name) || values.has(name)) throw new Error(usage);
+    values.set(name, value);
+  }
+  return values;
+}
+
+function parseAttributes(value: string): Record<string, string> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch (error) {
+    throw new Error(usage, { cause: error });
+  }
+  if (
+    !parsed ||
+    typeof parsed !== "object" ||
+    Array.isArray(parsed) ||
+    Object.values(parsed).some((item) => typeof item !== "string")
+  ) {
+    throw new Error(usage);
+  }
+  return parsed as Record<string, string>;
+}
+
+function writeJson(value: unknown) {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+const invokedPath = process.argv[1]
+  ? pathToFileURL(resolve(process.argv[1])).href
+  : null;
+if (invokedPath === import.meta.url) {
+  main().catch((error: unknown) => {
+    process.stderr.write(
+      `${error instanceof Error ? error.message : "Unknown failure"}\n`,
+    );
+    process.exitCode = 1;
+  });
+}

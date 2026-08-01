@@ -22,10 +22,11 @@ describe("FileSystemRawSnapshotStore", () => {
     const directory = await mkdtemp(join(tmpdir(), "shopsmart-snapshot-test-"));
     temporaryDirectories.push(directory);
     const store = new FileSystemRawSnapshotStore(directory);
-    const contentHash = "a".repeat(64);
+    const html = "<html><body>Synthetic retailer evidence</body></html>";
+    const contentHash = createHash("sha256").update(html).digest("hex");
 
     const stored = await store.write({
-      html: "<html><body>Synthetic retailer evidence</body></html>",
+      html,
       contentHash,
       retrievedAt: "2026-08-01T12:00:00.000Z",
       rawDeleteAt: "2026-08-04T12:00:00.000Z",
@@ -34,6 +35,9 @@ describe("FileSystemRawSnapshotStore", () => {
     expect(stored.storageKey).toMatch(/^1785844800000-[a-f0-9]{64}\.html$/);
     expect(stored.absolutePath.startsWith(directory)).toBe(true);
     await expect(readFile(stored.absolutePath, "utf8")).resolves.toBe(
+      "<html><body>Synthetic retailer evidence</body></html>",
+    );
+    await expect(store.read(stored.storageKey)).resolves.toBe(
       "<html><body>Synthetic retailer evidence</body></html>",
     );
     await expect(

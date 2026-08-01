@@ -17,6 +17,7 @@ Repozitář obsahuje dokumentační a architektonický základ a testovaný Type
 - [`docs/CONNECTOR_OPERATIONS.md`](docs/CONNECTOR_OPERATIONS.md) — PostgreSQL leasing, TTL/early refresh, coverage manifesty a provozní stavy connectorů.
 - [`docs/decisions/0004-first-retailer-source.md`](docs/decisions/0004-first-retailer-source.md) — první český source scope: Kaufland Praha-Vypich, povolené cesty, rate limit, retention a fail-closed pravidla.
 - [`docs/decisions/0005-albert-leaflet-source.md`](docs/decisions/0005-albert-leaflet-source.md) — oficiální české Albert supermarket/hypermarket letáky, PDF extrakce, rate limit a fail-closed pravidla.
+- [`docs/decisions/0006-globus-brno-featured-offers.md`](docs/decisions/0006-globus-brno-featured-offers.md) — povolený Globus Brno featured-offer scope a roboty zakázané cesty, které konektor nikdy nenavštěvuje.
 - [`docs/AI_ASSIST_OPERATIONS.md`](docs/AI_ASSIST_OPERATIONS.md) — verzované AI candidate kontrakty, deterministické brány, nákladové limity, cache a operátorské review.
 - [`AGENTS.md`](AGENTS.md) — závazné instrukce pro coding agenty a budoucí příspěvky.
 
@@ -92,6 +93,18 @@ pnpm mapping:albert approve --candidate <candidate-uuid> --canonical <class-uuid
 ```
 
 `ingest:albert` načte oficiální index jednou pouze tehdy, když je alespoň jeden scope due, a každou PDF třídu nejvýše jednou za 12 hodin. Raw PDF je jen v ignorovaném `SHOPSMART_ALBERT_RAW_SNAPSHOT_DIR` a po 72 hodinách se maže. Schválení mapování okamžitě znovu zpracuje uchované PDF bez nového stažení; příkaz `reprocess` lze bezpečně zopakovat po přechodné chybě. Bez explicitního mapování vznikne pouze review kandidát; leták netvrdí skladovou dostupnost.
+
+Globus konektor je omezený na osm zvýrazněných nabídek na oficiální stránce Brno:
+
+```powershell
+pnpm ingest:globus
+pnpm mapping:globus list
+pnpm mapping:globus reprocess
+pnpm mapping:globus classes
+pnpm mapping:globus approve --candidate <candidate-uuid> --canonical <class-uuid> --reviewer local-operator --attributes '{"state":"fresh"}'
+```
+
+Jeden shared fetch je nejvýše jednou za 12 hodin. Produktové odkazy a úplné nabídky zakázané v Globus `robots.txt` se nikdy nenačítají. Veřejná a zřetelně označená cena `Můj Globus` jsou samostatné nabídky; nejasná klubová cena se karanténuje. Raw HTML je v ignorovaném `SHOPSMART_GLOBUS_RAW_SNAPSHOT_DIR` nejvýše 72 hodin a schválení mapování ho hashově ověří a znovu zpracuje bez sítě.
 
 Publikované nabídky se společně porovnají se všemi relevantními watch rules příkazem:
 
