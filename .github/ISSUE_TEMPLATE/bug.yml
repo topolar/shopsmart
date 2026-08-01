@@ -1,0 +1,56 @@
+name: Bug report
+description: Report reproducible incorrect ShopSmart behavior.
+title: "[Bug]: "
+labels:
+  - bug
+  - status:ready
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Provide sanitized evidence. ShopSmart fails closed when offer identity, units, validity, provenance, or locality are uncertain.
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened, including relevant sanitized evidence?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What deterministic contract should apply instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Give the smallest repeatable steps or synthetic fixture.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact and scope
+      description: Identify affected tenants, sources, channels, or domain rules without exposing private data.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] A focused test reproduces the failure before the fix
+        - [ ] The focused test passes after the fix
+        - [ ] The maintained suite passes
+    validations:
+      required: true
+  - type: checkboxes
+    id: public_data
+    attributes:
+      label: Public repository check
+      options:
+        - label: I have excluded secrets, private addresses, personal email addresses, production data, and unsanitized logs.
+          required: true

@@ -301,19 +301,21 @@ Oficiální API / feedy / HTML / PDF / obrázky / agregátory
                               Email       Web events
 ```
 
-### 4.1 Doporučený technický základ
+### 4.1 Zvolený technický základ
 
-Návrh k potvrzení před scaffoldem:
+Rozhodnutí z 2026-08-01 je popsáno v [`docs/TECHNICAL_ARCHITECTURE.md`](docs/TECHNICAL_ARCHITECTURE.md) a sledováno v [GitHub Issue #2](https://github.com/topolar/shopsmart/issues/2):
 
-- monorepo;
-- backend: Python, FastAPI, Pydantic, SQLAlchemy, Alembic;
-- databáze: PostgreSQL;
-- fronta/cache: Redis a Dramatiq/Celery; při větší komplexitě Temporal;
-- frontend: Next.js/React nebo jednodušší server-renderované UI pro první MVP;
-- objektové úložiště: S3 kompatibilní pro raw snapshoty a letáky;
+- local-first monorepo s pozdější migrací stejných procesů na hosting;
+- web: Next.js App Router, React, TypeScript a Tailwind CSS;
+- jediný veřejný vstup vede přes web/BFF; autoritativní doménová pravidla žijí ve sdíleném TypeScript balíčku a neduplikují se v UI ani API glue kódu;
+- API a workery: Node.js a TypeScript; Fastify pro HTTP API, Zod pro runtime validaci a TypeORM pro PostgreSQL a verzované migrace;
+- databáze: PostgreSQL 18 v lokálním Docker kontejneru na loopback portu `57432`; produkčně managed PostgreSQL;
+- první slice používá PostgreSQL také pro job leasing a transakční outbox; Redis/BullMQ nebo Temporal se přidá až při doložené provozní potřebě;
+- raw snapshoty jsou lokálně v ignorovaném adresáři, produkčně v S3-compatible object storage;
+- dočasný vzdálený přístup používá pojmenovaný Cloudflare Tunnel chráněný Access a vystavuje pouze web, nikdy databázi;
 - e-mail: transakční poskytovatel s bounce, suppression a unsubscribe podporou;
-- observability: strukturované logy, Sentry/OpenTelemetry, metriky freshness/error rate;
-- CI: lint, typy, unit/integration testy, migrace na prázdné DB, secret scan.
+- observability: strukturované redigované logy, Sentry/OpenTelemetry a freshness/error-rate metriky;
+- CI: lint, typy, unit/integration testy, migrace na prázdné DB a secret/PII scan.
 
 AgentMail posloužil jako funkční transport pro jednoho uživatele. Ve veřejné službě je vhodnější standardní transakční e-mailová infrastruktura a databázový outbox.
 
@@ -627,8 +629,8 @@ Před implementací je potřeba rozhodnout:
 - právní/licenční režim repozitáře;
 - které zdroje mají povolený automatizovaný přístup;
 - první region a řetězce;
-- zda frontend bude Next.js nebo server-renderovaný Python;
-- queue technologie;
+- konkrétní generátor OpenAPI z TypeScript kontraktů;
+- okamžik a konkrétní queue technologie po vyhodnocení PostgreSQL job leasingu;
 - transakční e-mailový provider;
 - přesná definice „nejlepší nabídky“ pro pravidlo bez uživatelského prahu;
 - jak modelovat skupinové letáky a store-type scopes;

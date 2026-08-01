@@ -1,0 +1,4 @@
+interface:
+  display_name: "Track GitHub Work"
+  short_description: "Track and land ShopSmart work via Issues"
+  default_prompt: "Use $track-github-work to track, publish, and land this ShopSmart task without handing routine PR operations back to me."

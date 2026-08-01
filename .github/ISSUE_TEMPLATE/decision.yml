@@ -1,0 +1,45 @@
+name: Architecture or product decision
+description: Resolve a durable decision before implementation.
+title: "[Decision]: "
+labels:
+  - question
+  - status:ready
+body:
+  - type: textarea
+    id: decision
+    attributes:
+      label: Decision needed
+      description: State the single decision and why it is needed now.
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and evidence
+      description: Link the relevant PLAN.md section and list deterministic, legal, privacy, source, or operational constraints.
+    validations:
+      required: true
+  - type: textarea
+    id: options
+    attributes:
+      label: Options and trade-offs
+      description: Compare viable options. Do not present unsupported claims as evidence.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] The decision and rationale are recorded
+        - [ ] PLAN.md is updated
+        - [ ] Follow-up implementation issues are linked
+    validations:
+      required: true
+  - type: checkboxes
+    id: public_data
+    attributes:
+      label: Public repository check
+      options:
+        - label: I have excluded secrets, private addresses, personal email addresses, production data, and unsanitized logs.
+          required: true

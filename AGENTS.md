@@ -63,23 +63,60 @@ Persist approved AI outputs so the same stable product mapping or document inter
 7. Update `PLAN.md` when a decision, risk, source constraint, or milestone changes.
 8. Report actual command output; never claim a fetch, send, migration, deployment, or test succeeded without execution evidence.
 
+## GitHub Issues work ledger
+
+GitHub Issues are the authoritative queue and audit trail for repository work. Use the repository skill `track-github-work` for the live workflow.
+
+1. Every task that changes tracked files must have one primary GitHub Issue before the first edit. Read-only investigation and status reporting may use an existing issue without creating a new one.
+2. Use an issue supplied by the user when it matches the requested scope. Otherwise search open issues for a clear match before creating a new task, bug, or decision issue from the repository templates. Do not create duplicates.
+3. Record the goal, acceptance criteria, scope or non-goals, and known dependencies or evidence in the issue. Update the issue before materially expanding or changing that scope.
+4. Treat assignment as ownership. Do not start an issue assigned to another person or agent without explicit confirmation. When claiming work, assign the agreed owner, replace `status:ready` with `status:in-progress`, and comment with the branch and concise execution plan.
+5. Keep exactly one workflow label on every open work issue:
+   - `status:ready` — defined and available to claim;
+   - `status:in-progress` — actively being implemented;
+   - `status:blocked` — waiting for a decision or external dependency;
+   - `status:review` — a specific human review or approval is actually required before merge.
+6. Add issue comments only at meaningful checkpoints: a material finding or scope change, a blocker, or a review handoff. Include executed verification commands and their actual results; do not post speculative or routine narration.
+7. Before publishing completed work, post a work-log comment covering outcome, changed areas, verification, and remaining risks or follow-ups. Link the commit or pull request when one exists. Do not use `status:review` merely because work is on a branch or in a pull request.
+8. An explicit instruction to commit and push, publish, land, merge, or finish completed work authorizes the agent to carry that scoped change through the repository pull-request path unless the owner asks to leave it unmerged or requests review first. Complete pull requests are ready, not draft. After required checks pass, merge without handing routine pull-request operations back to the owner when no human approval is required.
+9. Pull requests must name the primary issue and use `Closes #<number>` only when merging the PR will satisfy its acceptance criteria. Use `status:review` only for an explicit review request, a required human approval, or a concrete decision outside agent authority; record the exact action needed.
+10. Close an issue as completed only after the change has landed and the acceptance criteria are satisfied. Verify default-branch state and automatic issue closure rather than trusting the merge command alone. Close cancelled, duplicate, or rejected work as not planned and record the reason. Remove workflow labels when closing.
+11. Never place secrets, cookies, private addresses, personal email addresses, production data, or unsanitized logs in issue bodies, comments, attachments, or linked work logs.
+12. If GitHub is unavailable, report the failure and do not invent issue state. Continue offline only when the user explicitly authorizes it, then reconcile the issue before later work or handoff.
+
+Issues track execution history; `PLAN.md` remains the durable source for accepted architecture, product decisions, risks, source constraints, and milestones.
+
+## Technology baseline
+
+The accepted local-first architecture is documented in `docs/TECHNICAL_ARCHITECTURE.md`.
+
+- Use TypeScript across the web, API, canonical domain, connectors, and workers. Do not introduce Python services or tooling without a superseding GitHub decision issue and explicit owner approval.
+- Use a pnpm workspace, Next.js App Router with Tailwind CSS for the web, Fastify for the private API, Zod/JSON Schema/OpenAPI contracts, and TypeORM with PostgreSQL.
+- Keep TypeORM `synchronize` disabled. Change schemas only through reviewed, versioned TypeORM migrations run as an explicit release step. Inside a transaction, use only the provided transactional entity manager.
+- Keep deterministic domain rules in shared TypeScript packages, not in React components, Next.js route glue, ORM models, or worker-specific copies.
+- Local PostgreSQL runs in Docker as `shopsmart-postgres`, bound only to `127.0.0.1:${SHOPSMART_POSTGRES_PORT:-57432}`. Recheck port availability before creating the container.
+- A future Cloudflare Tunnel may expose only the web origin. Never tunnel PostgreSQL or the private API, and never treat Cloudflare Access as a replacement for application authorization or tenant isolation.
+- Keep the first local slice small: PostgreSQL-backed job leasing and outbox are preferred before adding Redis, a general queue, or Temporal without measured need.
+
 ## Expected repository structure
 
 The initial implementation should evolve toward:
 
 ```text
 apps/
-  api/                 # HTTP API and application services
-  web/                 # user-facing web application
+  api/                 # Fastify HTTP API and application services
+  web/                 # Next.js user-facing web application
 workers/
   ingestion/           # retailer connectors and scheduler jobs
   matching/            # deterministic user matching/fan-out
 packages/
-  domain/              # canonical schemas and business rules
-  connectors/          # source-specific adapters
+  contracts/           # Zod, JSON Schema, and OpenAPI contracts
+  domain/              # TypeScript canonical schemas and business rules
+  database/            # TypeORM data source, entities, repositories, and transaction helpers
+  connectors/          # TypeScript source-specific adapters
   notifications/       # web/email rendering and delivery state
   ai_assist/           # bounded optional AI extraction/mapping
-migrations/
+migrations/            # TypeORM migrations
 tests/
 docs/
 ```
