@@ -1,6 +1,10 @@
 "use client";
 
-import { onboardingResponseSchema } from "@shopsmart/contracts";
+import {
+  onboardingResponseSchema,
+  watchRuleOptionsResponseSchema,
+  type WatchRuleOptionsResponse,
+} from "@shopsmart/contracts";
 import {
   useEffect,
   useState,
@@ -10,6 +14,7 @@ import {
 
 import { cs } from "../messages/cs";
 import { OffersDashboard } from "./offers-dashboard";
+import { WatchRuleForm } from "./watch-rule-form";
 
 type AuthMode = "sign-up" | "sign-in";
 
@@ -18,6 +23,8 @@ export function AuthOnboardingForm() {
   const [tenantId, setTenantId] = useState<string>();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string>();
+  const [watchOptions, setWatchOptions] = useState<WatchRuleOptionsResponse>();
+  const [preferencesRevision, setPreferencesRevision] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -37,6 +44,22 @@ export function AuthOnboardingForm() {
       .catch(() => undefined);
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    const controller = new AbortController();
+    void fetch(`/api/v1/tenants/${tenantId}/watch-rules/options`, {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return undefined;
+        return watchRuleOptionsResponseSchema.parse(await response.json());
+      })
+      .then(setWatchOptions)
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [tenantId, preferencesRevision]);
 
   async function authenticate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,7 +105,7 @@ export function AuthOnboardingForm() {
           region: data.get("region"),
           postalCodePrefix: data.get("postalCodePrefix") || null,
         },
-        storeIds: [],
+        storeIds: data.getAll("storeIds").map(String),
         onlineChannelKeys: data.get("onlineEnabled") ? ["public-web"] : [],
         loyaltyPrograms: data.get("loyaltyProgram")
           ? [data.get("loyaltyProgram")]
@@ -95,9 +118,9 @@ export function AuthOnboardingForm() {
     });
     const payload: unknown = await response.json();
     const parsed = onboardingResponseSchema.safeParse(payload);
-    setMessage(
-      response.ok && parsed.success ? cs.onboardingSaved : cs.onboardingError,
-    );
+    const saved = response.ok && parsed.success;
+    setMessage(saved ? cs.onboardingSaved : cs.onboardingError);
+    if (saved) setPreferencesRevision((current) => current + 1);
     setPending(false);
   }
 
@@ -119,6 +142,31 @@ export function AuthOnboardingForm() {
             defaultValue="110"
             pattern="[0-9]{3}"
           />
+          {watchOptions && watchOptions.availableStores.length > 0 ? (
+            <fieldset className="grid gap-2">
+              <legend className="text-sm font-semibold">
+                {cs.reachableStores}
+              </legend>
+              {watchOptions.availableStores.map((store) => (
+                <label className="flex gap-2" key={store.id}>
+                  <input
+                    defaultChecked={watchOptions.selectedStoreIds.includes(
+                      store.id,
+                    )}
+                    name="storeIds"
+                    type="checkbox"
+                    value={store.id}
+                  />
+                  <span>
+                    {(cs.storeNames as Readonly<Record<string, string>>)[
+                      store.name
+                    ] ?? store.name}{" "}
+                    ({store.city})
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          ) : null}
           <label className="flex items-start gap-3">
             <input
               className="mt-1"
@@ -146,6 +194,7 @@ export function AuthOnboardingForm() {
           <Submit pending={pending} label={cs.finishOnboarding} />
           {message ? <p role="status">{message}</p> : null}
         </form>
+        <WatchRuleForm tenantId={tenantId} refreshKey={preferencesRevision} />
         <OffersDashboard tenantId={tenantId} />
       </div>
     );

@@ -228,6 +228,14 @@ export class TypeOrmMatchingStore {
     return record === null ? null : mapWatchRuleRecord(record);
   }
 
+  async listWatchRules(actorTenantId: string): Promise<UserWatchRule[]> {
+    const records = await this.dataSource.getRepository(WatchRuleRecord).find({
+      where: { tenantId: actorTenantId },
+      order: { createdAt: "ASC", id: "ASC" },
+    });
+    return records.map(mapWatchRuleRecord);
+  }
+
   async saveMatch(
     actorTenantId: string,
     input: unknown,

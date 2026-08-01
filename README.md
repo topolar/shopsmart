@@ -101,6 +101,8 @@ pnpm match:run-once
 
 Worker nespouští žádný source fetch ani job pro jednotlivého uživatele. Publikované nabídky načte jednou, watch rules omezí v PostgreSQL podle canonical product class a konečné rozhodnutí deleguje deterministickému matcheru. Výstup obsahuje pouze agregované počty včetně stabilních rejection reasons. Opakovaný nebo souběžný běh je idempotentní a neznámý retailer se odmítne fail-closed.
 
+Po přihlášení lze ve webu vybrat známé kamenné zdroje, uložit onboarding a založit strukturované hlídání canonical produktu s maximální jednotkovou cenou v CZK. API odvozuje jednotku a povinné/excluded atributy ze serverového katalogu, ověřuje prodejny a členství proti tenant onboarding volbám a nepřijímá klientem oslabenou identitu produktu. Nové shody se objeví po následujícím společném `pnpm match:run-once`; vytvoření pravidla samo žádný retailer nestahuje.
+
 Navazující krok je první provozní review zachycených kandidátů a podle GitHub Issues produkční Resend adapter s ověřenými webhooky.
 
 ## Vývojový workflow

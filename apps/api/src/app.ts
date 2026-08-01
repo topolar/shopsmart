@@ -18,13 +18,20 @@ import {
   aiAssistReviewErrorSchema,
   operatorAuthorizationErrorSchema,
   tenantAuthorizationErrorSchema,
+  createWatchRuleRequestSchema,
+  userWatchRuleSchema,
+  watchRuleListResponseSchema,
+  watchRuleSelectionErrorSchema,
+  watchRuleOptionsResponseSchema,
 } from "@shopsmart/contracts";
 import type {
   NormalizationStore,
   OffersDashboardStore,
   TypeOrmOnboardingStore,
   TypeOrmAiAssistStore,
+  WatchRuleApplicationStore,
 } from "@shopsmart/database";
+import { WatchRuleSelectionError } from "@shopsmart/database";
 import {
   IncompatibleUnitError,
   InvalidNormalizationInputError,
@@ -41,6 +48,7 @@ type AppDependencies = Readonly<{
   onboardingStore: TypeOrmOnboardingStore;
   dashboardStore?: OffersDashboardStore;
   aiAssistStore?: TypeOrmAiAssistStore;
+  watchRuleStore?: WatchRuleApplicationStore;
 }>;
 
 export async function buildApp(
@@ -133,6 +141,128 @@ export async function buildApp(
         return reply.code(200).send(saved);
       },
     );
+
+    const watchRuleStore = dependencies.watchRuleStore;
+    if (watchRuleStore) {
+      typedApp.get(
+        "/api/v1/tenants/:tenantId/watch-rules/options",
+        {
+          schema: {
+            params: z.object({ tenantId: z.uuid() }),
+            response: {
+              200: watchRuleOptionsResponseSchema,
+              401: tenantAuthorizationErrorSchema,
+              403: tenantAuthorizationErrorSchema,
+            },
+          },
+        },
+        async (request, reply) => {
+          const session = await dependencies.auth.api.getSession({
+            headers: fromNodeHeaders(request.headers),
+          });
+          if (!session) {
+            return reply.code(401).send({
+              code: "UNAUTHENTICATED",
+              message: "A valid session is required.",
+            });
+          }
+          if (session.user.tenantId !== request.params.tenantId) {
+            return reply.code(403).send({
+              code: "TENANT_SCOPE_VIOLATION",
+              message: "The requested tenant is outside the active session.",
+            });
+          }
+          return reply
+            .code(200)
+            .send(await watchRuleStore.options(session.user.tenantId));
+        },
+      );
+
+      typedApp.post(
+        "/api/v1/tenants/:tenantId/watch-rules",
+        {
+          schema: {
+            params: z.object({ tenantId: z.uuid() }),
+            body: createWatchRuleRequestSchema,
+            response: {
+              201: userWatchRuleSchema,
+              401: tenantAuthorizationErrorSchema,
+              403: tenantAuthorizationErrorSchema,
+              422: watchRuleSelectionErrorSchema,
+            },
+          },
+        },
+        async (request, reply) => {
+          const session = await dependencies.auth.api.getSession({
+            headers: fromNodeHeaders(request.headers),
+          });
+          if (!session) {
+            return reply.code(401).send({
+              code: "UNAUTHENTICATED",
+              message: "A valid session is required.",
+            });
+          }
+          if (session.user.tenantId !== request.params.tenantId) {
+            return reply.code(403).send({
+              code: "TENANT_SCOPE_VIOLATION",
+              message: "The requested tenant is outside the active session.",
+            });
+          }
+          try {
+            return reply
+              .code(201)
+              .send(
+                await watchRuleStore.create(
+                  session.user.tenantId,
+                  request.body,
+                ),
+              );
+          } catch (error) {
+            if (error instanceof WatchRuleSelectionError) {
+              return reply.code(422).send({
+                code: "WATCH_RULE_SELECTION_INVALID",
+                message: error.message,
+              });
+            }
+            throw error;
+          }
+        },
+      );
+
+      typedApp.get(
+        "/api/v1/tenants/:tenantId/watch-rules",
+        {
+          schema: {
+            params: z.object({ tenantId: z.uuid() }),
+            response: {
+              200: watchRuleListResponseSchema,
+              401: tenantAuthorizationErrorSchema,
+              403: tenantAuthorizationErrorSchema,
+            },
+          },
+        },
+        async (request, reply) => {
+          const session = await dependencies.auth.api.getSession({
+            headers: fromNodeHeaders(request.headers),
+          });
+          if (!session) {
+            return reply.code(401).send({
+              code: "UNAUTHENTICATED",
+              message: "A valid session is required.",
+            });
+          }
+          if (session.user.tenantId !== request.params.tenantId) {
+            return reply.code(403).send({
+              code: "TENANT_SCOPE_VIOLATION",
+              message: "The requested tenant is outside the active session.",
+            });
+          }
+          return reply.code(200).send({
+            items: await watchRuleStore.list(session.user.tenantId),
+          });
+        },
+      );
+    }
 
     const dashboardStore = dependencies.dashboardStore;
     if (dashboardStore) {

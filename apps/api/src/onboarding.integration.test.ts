@@ -6,7 +6,9 @@ import {
   StoreRecord,
   TypeOrmNormalizationStore,
   TypeOrmOnboardingStore,
+  TypeOrmWatchRuleApplicationStore,
   UserStoreAccessRecord,
+  CanonicalProductClassRecord,
 } from "@shopsmart/database";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
@@ -18,6 +20,7 @@ import { createShopSmartAuth } from "./auth.js";
 const databaseUrl = integrationDatabaseUrl();
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
 const testStoreId = "018f5f70-7b5d-7a21-9f49-01b7f63a9401";
+const testCanonicalId = "018f5f70-7b5d-7a21-9f49-01b7f63a9411";
 
 describeWithDatabase("authenticated tenant onboarding", () => {
   let dataSource: ReturnType<typeof createAppDataSource> | undefined;
@@ -39,6 +42,7 @@ describeWithDatabase("authenticated tenant onboarding", () => {
     app = await buildApp(new TypeOrmNormalizationStore(dataSource), {
       auth: authRuntime.auth,
       onboardingStore: new TypeOrmOnboardingStore(dataSource),
+      watchRuleStore: new TypeOrmWatchRuleApplicationStore(dataSource),
     });
   });
 
@@ -51,6 +55,14 @@ describeWithDatabase("authenticated tenant onboarding", () => {
       officialName: "Synthetic public store",
       city: "Praha",
       sourceUrl: "https://retailer.example.invalid/stores/synthetic",
+    });
+    await dataSource.getRepository(CanonicalProductClassRecord).save({
+      id: testCanonicalId,
+      slug: "api-watch-cucumber",
+      name: "Syntetická okurka",
+      comparisonUnit: "piece",
+      requiredAttributes: { state: "fresh" },
+      excludedAttributes: {},
     });
   });
 
@@ -178,6 +190,114 @@ describeWithDatabase("authenticated tenant onboarding", () => {
     expect(response.json()).toMatchObject({ code: "TENANT_SCOPE_VIOLATION" });
   });
 
+  it("creates and lists a structured watch rule from persisted onboarding choices", async () => {
+    if (!app) throw new Error("Test app was not initialized.");
+    const account = await register("integration-a@example.invalid");
+    await saveSyntheticOnboarding(account);
+
+    const created = await app.inject({
+      method: "POST",
+      url: `/api/v1/tenants/${account.tenantId}/watch-rules`,
+      headers: { cookie: account.cookie, origin: "http://localhost:3000" },
+      payload: {
+        canonicalProductClassId: testCanonicalId,
+        maxUnitPrice: { amount: "25.00", currency: "CZK", unit: "piece" },
+        acceptedMemberships: [],
+        channel: "physical",
+        storeIds: [testStoreId],
+      },
+    });
+
+    expect(created.statusCode, created.body).toBe(201);
+    expect(created.json()).toMatchObject({
+      tenantId: account.tenantId,
+      canonicalProductClassId: testCanonicalId,
+      channels: ["physical"],
+      storeIds: [testStoreId],
+    });
+    const listed = await app.inject({
+      method: "GET",
+      url: `/api/v1/tenants/${account.tenantId}/watch-rules`,
+      headers: { cookie: account.cookie, origin: "http://localhost:3000" },
+    });
+    expect(listed.statusCode, listed.body).toBe(200);
+    expect(listed.json()).toMatchObject({ items: [created.json()] });
+  });
+
+  it("exposes structured options and rejects cross-tenant or unselected stores", async () => {
+    if (!app) throw new Error("Test app was not initialized.");
+    const accountA = await register("integration-a@example.invalid");
+    const accountB = await register("integration-b@example.invalid");
+    await saveSyntheticOnboarding(accountA);
+
+    const options = await app.inject({
+      method: "GET",
+      url: `/api/v1/tenants/${accountA.tenantId}/watch-rules/options`,
+      headers: { cookie: accountA.cookie, origin: "http://localhost:3000" },
+    });
+    expect(options.statusCode, options.body).toBe(200);
+    expect(options.json()).toMatchObject({
+      tenantId: accountA.tenantId,
+      products: expect.arrayContaining([
+        expect.objectContaining({
+          id: testCanonicalId,
+          name: "Syntetická okurka",
+          comparisonUnit: "piece",
+        }),
+      ]),
+      availableStores: expect.arrayContaining([
+        expect.objectContaining({
+          id: testStoreId,
+          name: "Synthetic public store",
+        }),
+      ]),
+      selectedStoreIds: [testStoreId],
+      acceptedMemberships: [],
+    });
+
+    const payload = {
+      canonicalProductClassId: testCanonicalId,
+      maxUnitPrice: { amount: "25.00", currency: "CZK", unit: "piece" },
+      acceptedMemberships: [],
+      channel: "physical",
+      storeIds: [testStoreId],
+    };
+    const crossTenant = await app.inject({
+      method: "POST",
+      url: `/api/v1/tenants/${accountA.tenantId}/watch-rules`,
+      headers: { cookie: accountB.cookie, origin: "http://localhost:3000" },
+      payload,
+    });
+    expect(crossTenant.statusCode).toBe(403);
+
+    const unselected = await app.inject({
+      method: "POST",
+      url: `/api/v1/tenants/${accountB.tenantId}/watch-rules`,
+      headers: { cookie: accountB.cookie, origin: "http://localhost:3000" },
+      payload,
+    });
+    expect(unselected.statusCode, unselected.body).toBe(422);
+    expect(unselected.json()).toMatchObject({
+      code: "WATCH_RULE_SELECTION_INVALID",
+    });
+
+    const unselectedMembership = await app.inject({
+      method: "POST",
+      url: `/api/v1/tenants/${accountA.tenantId}/watch-rules`,
+      headers: { cookie: accountA.cookie, origin: "http://localhost:3000" },
+      payload: {
+        ...payload,
+        acceptedMemberships: ["loyalty:not-selected"],
+      },
+    });
+    expect(unselectedMembership.statusCode, unselectedMembership.body).toBe(
+      422,
+    );
+    expect(unselectedMembership.json()).toMatchObject({
+      code: "WATCH_RULE_SELECTION_INVALID",
+    });
+  });
+
   async function register(email: string) {
     if (!app) throw new Error("Test app was not initialized.");
     const response = await app.inject({
@@ -198,6 +318,30 @@ describeWithDatabase("authenticated tenant onboarding", () => {
       cookie: Array.isArray(cookie) ? cookie[0]! : cookie!,
       tenantId: payload.user!.tenantId!,
     };
+  }
+
+  async function saveSyntheticOnboarding(account: {
+    cookie: string;
+    tenantId: string;
+  }) {
+    if (!app) throw new Error("Test app was not initialized.");
+    const response = await app.inject({
+      method: "PUT",
+      url: `/api/v1/tenants/${account.tenantId}/onboarding`,
+      headers: { cookie: account.cookie, origin: "http://localhost:3000" },
+      payload: {
+        locale: "cs",
+        locality: { city: "Praha", region: "Hlavní město Praha" },
+        storeIds: [testStoreId],
+        onlineChannelKeys: [],
+        loyaltyPrograms: [],
+        notification: {
+          emailDigestEnabled: false,
+          timezone: "Europe/Prague",
+        },
+      },
+    });
+    expect(response.statusCode, response.body).toBe(200);
   }
 });
 
@@ -221,5 +365,11 @@ async function clearSyntheticUsers(
     .createQueryBuilder()
     .delete()
     .where("id = :id", { id: testStoreId })
+    .execute();
+  await dataSource
+    .getRepository(CanonicalProductClassRecord)
+    .createQueryBuilder()
+    .delete()
+    .where("id = :id", { id: testCanonicalId })
     .execute();
 }
