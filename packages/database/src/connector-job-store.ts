@@ -266,6 +266,7 @@ export class TypeOrmConnectorJobStore {
     now: string;
     leaseSeconds: number;
     limit: number;
+    sourceScopeKey?: string;
   }): Promise<ClaimedConnectorJob[]> {
     const now = new Date(input.now);
     const leaseExpiresAt = new Date(now.getTime() + input.leaseSeconds * 1000);
@@ -278,6 +279,7 @@ export class TypeOrmConnectorJobStore {
               AND ("rate_limit_until" IS NULL OR "rate_limit_until" <= $1))
             OR ("status" = 'leased' AND "lease_expires_at" <= $1)
           )
+          AND ($5::varchar IS NULL OR "source_scope_key" = $5)
           ORDER BY "due_at", "source_scope_key"
           LIMIT $2
           FOR UPDATE SKIP LOCKED
@@ -289,7 +291,13 @@ export class TypeOrmConnectorJobStore {
         FROM candidates
         WHERE job."id" = candidates."id"
         RETURNING job.*`,
-        [now, input.limit, input.workerId, leaseExpiresAt],
+        [
+          now,
+          input.limit,
+          input.workerId,
+          leaseExpiresAt,
+          input.sourceScopeKey ?? null,
+        ],
       )) as unknown;
       const rows = normalizeQueryRows(queryResult);
       return rows.map((row) => ({

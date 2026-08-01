@@ -1,10 +1,15 @@
 import {
   KAUFLAND_PRAHA_VYPICH_SCOPE,
+  type KauflandProductMapping,
   type KauflandSnapshotResult,
 } from "@shopsmart/connectors";
 import { EntitySchema, type DataSource } from "typeorm";
 
-import { OfferRecord, RetailerProductRecord } from "./offer-record.js";
+import {
+  CanonicalProductClassRecord,
+  OfferRecord,
+  RetailerProductRecord,
+} from "./offer-record.js";
 import { StoreRecord } from "./onboarding-store.js";
 
 export class SourceSnapshotRecord {
@@ -32,6 +37,22 @@ export class QuarantinedSourceCandidateRecord {
   exactName!: string | null;
   reasonCode!: string;
   createdAt!: Date;
+}
+
+export class RetailerProductMappingCandidateRecord {
+  id!: string;
+  sourceScopeKey!: string;
+  retailerId!: string;
+  externalId!: string;
+  exactName!: string;
+  sourceSnapshotId!: string;
+  status!: "pending" | "approved" | "rejected";
+  canonicalProductClassId!: string | null;
+  variantAttributes!: Record<string, string>;
+  reviewedBy!: string | null;
+  reviewedAt!: Date | null;
+  createdAt!: Date;
+  updatedAt!: Date;
 }
 
 export const sourceSnapshotRecordSchema =
@@ -107,6 +128,55 @@ export const quarantinedSourceCandidateRecordSchema =
       reasonCode: { name: "reason_code", type: "varchar", length: 120 },
       createdAt: { name: "created_at", type: "timestamptz", createDate: true },
     },
+  });
+
+export const retailerProductMappingCandidateRecordSchema =
+  new EntitySchema<RetailerProductMappingCandidateRecord>({
+    name: "RetailerProductMappingCandidateRecord",
+    tableName: "retailer_product_mapping_candidates",
+    target: RetailerProductMappingCandidateRecord,
+    columns: {
+      id: { type: "uuid", primary: true, generated: "uuid" },
+      sourceScopeKey: {
+        name: "source_scope_key",
+        type: "varchar",
+        length: 240,
+      },
+      retailerId: { name: "retailer_id", type: "uuid" },
+      externalId: { name: "external_id", type: "varchar", length: 240 },
+      exactName: { name: "exact_name", type: "varchar", length: 500 },
+      sourceSnapshotId: { name: "source_snapshot_id", type: "uuid" },
+      status: { type: "varchar", length: 24, default: "pending" },
+      canonicalProductClassId: {
+        name: "canonical_product_class_id",
+        type: "uuid",
+        nullable: true,
+      },
+      variantAttributes: {
+        name: "variant_attributes",
+        type: "jsonb",
+        default: {},
+      },
+      reviewedBy: {
+        name: "reviewed_by",
+        type: "varchar",
+        length: 160,
+        nullable: true,
+      },
+      reviewedAt: {
+        name: "reviewed_at",
+        type: "timestamptz",
+        nullable: true,
+      },
+      createdAt: { name: "created_at", type: "timestamptz", createDate: true },
+      updatedAt: { name: "updated_at", type: "timestamptz", updateDate: true },
+    },
+    uniques: [
+      {
+        name: "uq_retailer_mapping_candidate_external",
+        columns: ["retailerId", "externalId"],
+      },
+    ],
   });
 
 type PersistOptions = Readonly<{ rawStorageKey: string | null }>;
@@ -219,6 +289,32 @@ export class TypeOrmSourceIngestionStore {
         );
       }
 
+      const unmapped = result.quarantines.filter(
+        (candidate) =>
+          candidate.reasonCode === "UNMAPPED_PRODUCT" &&
+          candidate.externalId !== null &&
+          candidate.exactName !== null,
+      );
+      for (const candidate of unmapped) {
+        await manager.query(
+          `INSERT INTO "retailer_product_mapping_candidates" (
+             "source_scope_key", "retailer_id", "external_id", "exact_name",
+             "source_snapshot_id", "status"
+           ) VALUES ($1, $2, $3, $4, $5, 'pending')
+           ON CONFLICT ("retailer_id", "external_id") DO UPDATE SET
+             "exact_name" = EXCLUDED."exact_name",
+             "source_snapshot_id" = EXCLUDED."source_snapshot_id",
+             "updated_at" = CURRENT_TIMESTAMP`,
+          [
+            result.retrieval.sourceScopeKey,
+            KAUFLAND_PRAHA_VYPICH_SCOPE.retailerId,
+            candidate.externalId,
+            candidate.exactName,
+            snapshot.id,
+          ],
+        );
+      }
+
       return { snapshotId: snapshot.id };
     });
   }
@@ -241,10 +337,130 @@ export class TypeOrmSourceIngestionStore {
       .where("raw_storage_key IN (:...storageKeys)", { storageKeys })
       .execute();
   }
+
+  async listPendingKauflandMappings() {
+    return this.dataSource
+      .getRepository(RetailerProductMappingCandidateRecord)
+      .find({
+        where: {
+          sourceScopeKey: KAUFLAND_PRAHA_VYPICH_SCOPE.key,
+          status: "pending",
+        },
+        order: { createdAt: "ASC", externalId: "ASC" },
+      });
+  }
+
+  async listKauflandCanonicalClasses() {
+    return this.dataSource.getRepository(CanonicalProductClassRecord).find({
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        comparisonUnit: true,
+        requiredAttributes: true,
+        excludedAttributes: true,
+      },
+      order: { slug: "ASC" },
+    });
+  }
+
+  async approveKauflandMapping(input: {
+    candidateId: string;
+    canonicalProductClassId: string;
+    variantAttributes: Record<string, string>;
+    reviewedBy: string;
+    reviewedAt: string;
+  }): Promise<void> {
+    const reviewedAt = parseCanonicalTimestamp(input.reviewedAt, "reviewedAt");
+    const reviewedBy = input.reviewedBy.trim();
+    if (!reviewedBy || reviewedBy.length > 160) {
+      throw new Error("reviewedBy must identify the local operator.");
+    }
+    validateVariantAttributes(input.variantAttributes);
+    await this.dataSource.transaction(async (manager) => {
+      const candidates = manager.getRepository(
+        RetailerProductMappingCandidateRecord,
+      );
+      const candidate = await candidates.findOne({
+        where: { id: input.candidateId },
+        lock: { mode: "pessimistic_write" },
+      });
+      if (!candidate) throw new Error("UNKNOWN_MAPPING_CANDIDATE");
+      if (candidate.status !== "pending") {
+        throw new Error("MAPPING_ALREADY_REVIEWED");
+      }
+      const canonical = await manager
+        .getRepository(CanonicalProductClassRecord)
+        .findOneBy({ id: input.canonicalProductClassId });
+      if (!canonical) throw new Error("UNKNOWN_CANONICAL_PRODUCT_CLASS");
+      const missingRequiredAttribute = Object.entries(
+        canonical.requiredAttributes,
+      ).some(([key, expected]) => input.variantAttributes[key] !== expected);
+      const excludedAttribute = Object.entries(
+        canonical.excludedAttributes,
+      ).some(([key, excluded]) => input.variantAttributes[key] === excluded);
+      if (missingRequiredAttribute || excludedAttribute) {
+        throw new Error("MAPPING_ATTRIBUTE_MISMATCH");
+      }
+      await candidates.update(
+        { id: candidate.id, status: "pending" },
+        {
+          status: "approved",
+          canonicalProductClassId: input.canonicalProductClassId,
+          variantAttributes: { ...input.variantAttributes },
+          reviewedBy,
+          reviewedAt,
+        },
+      );
+    });
+  }
+
+  async loadApprovedKauflandMappings(): Promise<KauflandProductMapping[]> {
+    const rows = (await this.dataSource.query(
+      `SELECT candidate."external_id", candidate."canonical_product_class_id",
+              candidate."variant_attributes", canonical."comparison_unit"
+       FROM "retailer_product_mapping_candidates" candidate
+       INNER JOIN "canonical_product_classes" canonical
+         ON canonical."id" = candidate."canonical_product_class_id"
+       WHERE candidate."source_scope_key" = $1
+         AND candidate."retailer_id" = $2
+         AND candidate."status" = 'approved'
+       ORDER BY candidate."external_id"`,
+      [KAUFLAND_PRAHA_VYPICH_SCOPE.key, KAUFLAND_PRAHA_VYPICH_SCOPE.retailerId],
+    )) as Array<Record<string, unknown>>;
+    return rows.map((row) => ({
+      externalId: row.external_id as string,
+      canonicalProductClassId: row.canonical_product_class_id as string,
+      comparisonUnit:
+        row.comparison_unit as KauflandProductMapping["comparisonUnit"],
+      variantAttributes: row.variant_attributes as Record<string, string>,
+    }));
+  }
 }
 
 function validateStorageKey(storageKey: string | null): void {
   if (storageKey !== null && !/^\d{13}-[a-f0-9]{64}\.html$/.test(storageKey)) {
     throw new Error("rawStorageKey must be a safe snapshot filename.");
+  }
+}
+
+function parseCanonicalTimestamp(value: string, name: string): Date {
+  const parsed = new Date(value);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
+    throw new Error(`${name} must be a canonical ISO timestamp.`);
+  }
+  return parsed;
+}
+
+function validateVariantAttributes(attributes: Record<string, string>): void {
+  for (const [key, value] of Object.entries(attributes)) {
+    if (
+      !key.trim() ||
+      key.length > 120 ||
+      !value.trim() ||
+      value.length > 240
+    ) {
+      throw new Error("variantAttributes must contain bounded non-empty text.");
+    }
   }
 }

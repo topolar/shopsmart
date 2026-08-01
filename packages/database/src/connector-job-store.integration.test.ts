@@ -113,6 +113,39 @@ describeWithDatabase("shared connector job operations", () => {
     });
   });
 
+  it("claims only the explicitly requested source scope", async () => {
+    if (!store) throw new Error("Store was not initialized.");
+    await store.register({
+      sourceScopeKey: "synthetic:other-scope",
+      requiredCoverageKeys: ["synthetic:other-scope"],
+      dueAt: "2026-08-01T11:00:00.000Z",
+      expectedParserVersion: "synthetic-v1",
+      maxAttempts: 3,
+    });
+    await store.register({
+      sourceScopeKey: scopeKey,
+      requiredCoverageKeys: [scopeKey],
+      dueAt: "2026-08-01T12:00:00.000Z",
+      expectedParserVersion: "synthetic-v1",
+      maxAttempts: 3,
+    });
+
+    const claims = await store.claimDue({
+      workerId: "scope-worker",
+      now: "2026-08-01T12:00:00.000Z",
+      leaseSeconds: 60,
+      limit: 1,
+      sourceScopeKey: scopeKey,
+    });
+
+    expect(claims).toHaveLength(1);
+    expect(claims[0]?.sourceScopeKey).toBe(scopeKey);
+    await expect(store.health("synthetic:other-scope")).resolves.toMatchObject({
+      status: "idle",
+      attempts: 0,
+    });
+  });
+
   it("models rate limits, deterministic retry, parser drift, and dead letter", async () => {
     if (!store) throw new Error("Store was not initialized.");
     const job = await store.register({
