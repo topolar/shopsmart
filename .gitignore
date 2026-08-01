@@ -16,9 +16,13 @@ venv/
 
 # JavaScript
 node_modules/
+.pnpm-store/
 .next/
 dist/
 coverage/
+*.tsbuildinfo
+playwright-report/
+test-results/
 
 # IDE and OS
 .vscode/
@@ -29,6 +33,7 @@ Thumbs.db
 # Runtime data — never commit user or retailer session data
 logs/
 cache/
+data/
 snapshots/
 raw-data/
 *.sqlite
