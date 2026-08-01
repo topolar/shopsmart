@@ -1,6 +1,7 @@
 import { z } from "zod/v4";
 
 import {
+  canonicalProductClassSchema,
   comparableUnitPriceSchema,
   moneySchema,
   offerContractVersionSchema,
@@ -92,7 +93,48 @@ export const matchedOfferSchema = z.object({
   evaluatedAt: z.iso.datetime(),
 });
 
+export const createWatchRuleRequestSchema = z
+  .object({
+    canonicalProductClassId: z.uuid(),
+    maxUnitPrice: comparableUnitPriceSchema,
+    acceptedMemberships: z.array(z.string().trim().min(1)).default([]),
+    channel: z.literal("physical"),
+    storeIds: z.array(z.uuid()).min(1),
+  })
+  .strict();
+
+export const watchRuleListResponseSchema = z.object({
+  items: z.array(userWatchRuleSchema),
+});
+
+export const watchRuleSelectionErrorSchema = z.object({
+  code: z.literal("WATCH_RULE_SELECTION_INVALID"),
+  message: z.string().trim().min(1),
+});
+
+export const watchRuleOptionsResponseSchema = z.object({
+  tenantId: z.uuid(),
+  products: z.array(canonicalProductClassSchema),
+  availableStores: z.array(
+    z.object({
+      id: z.uuid(),
+      retailerId: z.uuid(),
+      name: z.string().trim().min(1),
+      city: z.string().trim().min(1),
+    }),
+  ),
+  selectedStoreIds: z.array(z.uuid()),
+  acceptedMemberships: z.array(z.string().trim().min(1)),
+});
+
 export type UserWatchRule = z.infer<typeof userWatchRuleSchema>;
 export type WatchThreshold = z.infer<typeof watchThresholdSchema>;
 export type ThresholdReason = z.infer<typeof thresholdReasonSchema>;
 export type MatchedOffer = z.infer<typeof matchedOfferSchema>;
+export type CreateWatchRuleRequest = z.infer<
+  typeof createWatchRuleRequestSchema
+>;
+export type WatchRuleListResponse = z.infer<typeof watchRuleListResponseSchema>;
+export type WatchRuleOptionsResponse = z.infer<
+  typeof watchRuleOptionsResponseSchema
+>;
