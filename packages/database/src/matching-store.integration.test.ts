@@ -14,6 +14,8 @@ import {
   RetailerProductRecord,
 } from "./offer-record.js";
 import { TypeOrmOfferStore } from "./offer-store.js";
+import { TypeOrmOffersDashboardStore } from "./offers-dashboard-store.js";
+import { StoreRecord } from "./onboarding-store.js";
 
 const databaseUrl = process.env.DATABASE_URL;
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -80,6 +82,13 @@ describeWithDatabase("tenant-scoped matching persistence", () => {
       { id: tenantA, name: "Synthetic tenant A" },
       { id: tenantB, name: "Synthetic tenant B" },
     ]);
+    await dataSource.getRepository(StoreRecord).save({
+      id: storeId,
+      retailerId,
+      officialName: "Synthetic Prague branch",
+      city: "Praha",
+      sourceUrl: "https://retailer.example.invalid/stores/browser-test",
+    });
   });
 
   afterAll(async () => {
@@ -152,13 +161,54 @@ describeWithDatabase("tenant-scoped matching persistence", () => {
     await expect(
       store.saveMatch(tenantB, decision.match),
     ).rejects.toMatchObject({ code: "TENANT_SCOPE_VIOLATION" });
-    expect(await dataSource.getRepository(MatchRecord).count()).toBe(0);
+    expect(
+      await dataSource
+        .getRepository(MatchRecord)
+        .countBy([{ tenantId: tenantA }, { tenantId: tenantB }]),
+    ).toBe(0);
 
     await store.saveMatch(tenantA, decision.match);
     await expect(store.listMatches(tenantB, rule.id)).resolves.toEqual([]);
     await expect(store.listMatches(tenantA, rule.id)).resolves.toEqual([
       decision.match,
     ]);
+
+    const dashboardStore = new TypeOrmOffersDashboardStore(dataSource);
+    await expect(dashboardStore.list(tenantB)).resolves.toEqual({
+      contractVersion: "1",
+      tenantId: tenantB,
+      groups: [],
+    });
+    await expect(dashboardStore.list(tenantA)).resolves.toMatchObject({
+      tenantId: tenantA,
+      groups: [
+        {
+          canonicalProductClassName: "Synthetic tenant test curd",
+          comparisonUnit: "100-gram",
+          offers: [
+            {
+              localityName: "Synthetic Prague branch",
+              exactName: offer.exactName,
+              package: offer.package,
+              price: offer.price,
+              normalizedUnitPrice: decision.match.normalizedUnitPrice,
+              sourceUrl: offer.evidence.sourceUrl,
+              retrievedAt: offer.evidence.retrievedAt,
+            },
+          ],
+        },
+      ],
+    });
+
+    await dataSource
+      .getRepository(OfferRecord)
+      .update(
+        { id: offer.id },
+        { evidence: { ...offer.evidence, level: "candidate-only" } },
+      );
+    await expect(dashboardStore.list(tenantA)).resolves.toMatchObject({
+      groups: [],
+    });
   });
 });
 
@@ -169,6 +219,7 @@ async function clearMatchingData(
     [MatchRecord, "tenant_id IN (:...ids)", { ids: [tenantA, tenantB] }],
     [WatchRuleRecord, "tenant_id IN (:...ids)", { ids: [tenantA, tenantB] }],
     [TenantRecord, "id IN (:...ids)", { ids: [tenantA, tenantB] }],
+    [StoreRecord, "id = :id", { id: storeId }],
     [OfferRecord, "id = :id", { id: "018f5f70-7b5d-7a21-9f49-01b7f63a9320" }],
     [RetailerProductRecord, "id = :id", { id: retailerProductId }],
     [CanonicalProductClassRecord, "id = :id", { id: canonicalId }],

@@ -6,6 +6,7 @@ import {
   validatorCompiler,
 } from "@fastify/type-provider-zod";
 import {
+  offersDashboardResponseSchema,
   onboardingRequestSchema,
   onboardingResponseSchema,
   normalizationErrorSchema,
@@ -15,6 +16,7 @@ import {
 } from "@shopsmart/contracts";
 import type {
   NormalizationStore,
+  OffersDashboardStore,
   TypeOrmOnboardingStore,
 } from "@shopsmart/database";
 import {
@@ -31,6 +33,7 @@ import type { ShopSmartAuth } from "./auth.js";
 type AppDependencies = Readonly<{
   auth: ShopSmartAuth;
   onboardingStore: TypeOrmOnboardingStore;
+  dashboardStore?: OffersDashboardStore;
 }>;
 
 export async function buildApp(
@@ -123,6 +126,43 @@ export async function buildApp(
         return reply.code(200).send(saved);
       },
     );
+
+    const dashboardStore = dependencies.dashboardStore;
+    if (dashboardStore) {
+      typedApp.get(
+        "/api/v1/tenants/:tenantId/offers",
+        {
+          schema: {
+            params: z.object({ tenantId: z.uuid() }),
+            response: {
+              200: offersDashboardResponseSchema,
+              401: tenantAuthorizationErrorSchema,
+              403: tenantAuthorizationErrorSchema,
+            },
+          },
+        },
+        async (request, reply) => {
+          const session = await dependencies.auth.api.getSession({
+            headers: fromNodeHeaders(request.headers),
+          });
+          if (!session) {
+            return reply.code(401).send({
+              code: "UNAUTHENTICATED",
+              message: "A valid session is required.",
+            });
+          }
+          if (session.user.tenantId !== request.params.tenantId) {
+            return reply.code(403).send({
+              code: "TENANT_SCOPE_VIOLATION",
+              message: "The requested tenant is outside the active session.",
+            });
+          }
+          return reply
+            .code(200)
+            .send(await dashboardStore.list(session.user.tenantId));
+        },
+      );
+    }
   }
 
   typedApp.post(

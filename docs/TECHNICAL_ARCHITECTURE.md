@@ -167,6 +167,8 @@ Doporučené hranice:
 - web nepočítá autoritativní jednotkové ceny ani matching;
 - API odpovědi vždy nesou source URL, evidence level a verification timestamp tam, kde je UI zobrazuje.
 
+Evidence dashboard používá stejný-origin BFF route a private API odvozuje tenant výhradně z databázově validované session. TypeORM read model načítá jen `published` offer records, každý match/offer pár znovu prožene fail-closed kontraktem a teprve potom ho seskupí a seřadí deterministickou doménovou funkcí. Candidate-only nebo nekonzistentní data se do odpovědi ani UI nedostanou.
+
 Pro produkční self-hosting Next.js doporučuje reverzní proxy před serverem. Ta bude součástí hostingové fáze nebo ji poskytne cílová platforma; viz [Next.js self-hosting](https://nextjs.org/docs/app/guides/self-hosting).
 
 ## 8. Cloudflare Tunnel
