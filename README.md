@@ -7,6 +7,7 @@ ShopSmart je plánovaná veřejná služba pro personalizované hlídání náku
 Repozitář nyní obsahuje dokumentační a architektonický základ. Aplikace zatím není implementována.
 
 - [`PLAN.md`](PLAN.md) — podrobný plán, praktická zjištění z osobního pilotu, doménový model, architektura, roadmapa a hranice AI.
+- [`docs/TECHNICAL_ARCHITECTURE.md`](docs/TECHNICAL_ARCHITECTURE.md) — zvolený local-first stack, porty, Docker/PostgreSQL, Cloudflare Tunnel a cesta k produkčnímu hostingu.
 - [`AGENTS.md`](AGENTS.md) — závazné instrukce pro coding agenty a budoucí příspěvky.
 
 ## Hlavní princip
@@ -22,3 +23,7 @@ Jde o veřejný repozitář. Nevkládejte do něj osobní e-maily, soukromé adr
 ## Další krok
 
 Potvrdit otevřená rozhodnutí ve fázi 0 plánu a poté implementovat jedinou testovanou end-to-end vertical slice namísto prázdného scaffoldingu.
+
+## Vývojový workflow
+
+GitHub Issues jsou závazný seznam práce i auditní stopa provedených změn. Každá změna repozitáře má před první úpravou přiřazené Issue s cílem a akceptačními kritérii; průběh, skutečné výsledky ověření a předání k review se zapisují zpět do něj. Podrobný kontrakt je v [`AGENTS.md`](AGENTS.md) a Codex workflow v [`.agents/skills/track-github-work/SKILL.md`](.agents/skills/track-github-work/SKILL.md).

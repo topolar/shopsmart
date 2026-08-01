@@ -1,0 +1,73 @@
+name: Task
+description: Plan an implementation, documentation, or repository change.
+title: "[Task]: "
+labels:
+  - enhancement
+  - status:ready
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe one reviewable outcome. Do not include secrets, personal data, production records, or unsanitized logs.
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What outcome should exist when this issue is complete?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Planning and domain contracts
+        - Ingestion and connectors
+        - Matching
+        - Notifications
+        - API
+        - Web UI
+        - AI assist
+        - Security and privacy
+        - CI and developer experience
+        - Documentation
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Context and evidence
+      description: Link relevant plan sections, sources, issues, or observed behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Use observable, testable checklist items.
+      placeholder: |
+        - [ ] First observable outcome
+        - [ ] Required verification passes
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+      description: State what this issue deliberately will not change.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and risks
+      description: List decisions, external dependencies, privacy concerns, or known risks. Write "None known" when empty.
+    validations:
+      required: true
+  - type: checkboxes
+    id: public_data
+    attributes:
+      label: Public repository check
+      options:
+        - label: I have excluded secrets, private addresses, personal email addresses, production data, and unsanitized logs.
+          required: true
