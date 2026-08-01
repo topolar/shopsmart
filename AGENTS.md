@@ -75,13 +75,14 @@ GitHub Issues are the authoritative queue and audit trail for repository work. U
    - `status:ready` — defined and available to claim;
    - `status:in-progress` — actively being implemented;
    - `status:blocked` — waiting for a decision or external dependency;
-   - `status:review` — the implementation and verification evidence are ready for review.
+   - `status:review` — a specific human review or approval is actually required before merge.
 6. Add issue comments only at meaningful checkpoints: a material finding or scope change, a blocker, or a review handoff. Include executed verification commands and their actual results; do not post speculative or routine narration.
-7. Before review handoff, post a work-log comment covering outcome, changed areas, verification, and remaining risks or follow-ups. Link the commit or pull request when one exists and move the issue to `status:review`.
-8. Pull requests must name the primary issue and use `Closes #<number>` only when merging the PR will satisfy its acceptance criteria. Keep the issue open while work exists only in an unmerged branch or local working tree.
-9. Close an issue as completed only after the change has landed and the acceptance criteria are satisfied. Close cancelled, duplicate, or rejected work as not planned and record the reason. Remove workflow labels when closing.
-10. Never place secrets, cookies, private addresses, personal email addresses, production data, or unsanitized logs in issue bodies, comments, attachments, or linked work logs.
-11. If GitHub is unavailable, report the failure and do not invent issue state. Continue offline only when the user explicitly authorizes it, then reconcile the issue before later work or handoff.
+7. Before publishing completed work, post a work-log comment covering outcome, changed areas, verification, and remaining risks or follow-ups. Link the commit or pull request when one exists. Do not use `status:review` merely because work is on a branch or in a pull request.
+8. An explicit instruction to commit and push, publish, land, merge, or finish completed work authorizes the agent to carry that scoped change through the repository pull-request path unless the owner asks to leave it unmerged or requests review first. Complete pull requests are ready, not draft. After required checks pass, merge without handing routine pull-request operations back to the owner when no human approval is required.
+9. Pull requests must name the primary issue and use `Closes #<number>` only when merging the PR will satisfy its acceptance criteria. Use `status:review` only for an explicit review request, a required human approval, or a concrete decision outside agent authority; record the exact action needed.
+10. Close an issue as completed only after the change has landed and the acceptance criteria are satisfied. Verify default-branch state and automatic issue closure rather than trusting the merge command alone. Close cancelled, duplicate, or rejected work as not planned and record the reason. Remove workflow labels when closing.
+11. Never place secrets, cookies, private addresses, personal email addresses, production data, or unsanitized logs in issue bodies, comments, attachments, or linked work logs.
+12. If GitHub is unavailable, report the failure and do not invent issue state. Continue offline only when the user explicitly authorizes it, then reconcile the issue before later work or handoff.
 
 Issues track execution history; `PLAN.md` remains the durable source for accepted architecture, product decisions, risks, source constraints, and milestones.
 

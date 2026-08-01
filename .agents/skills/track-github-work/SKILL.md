@@ -1,6 +1,6 @@
 ---
 name: track-github-work
-description: Track ShopSmart repository work through GitHub Issues from intake and assignment to progress, review, and closure. Use for any task that will change tracked files, when starting or resuming issue work, reporting a blocker or status, handing work off for review, or recording completed implementation and verification. Do not use to create issues for read-only questions with no repository change.
+description: Track and land ShopSmart repository work through GitHub Issues from intake and assignment to progress, optional review, merge, and closure. Use for any task that will change tracked files, when starting or resuming issue work, publishing authorized changes, reporting a blocker or status, handing work off for explicitly required review, or recording completed implementation and verification. Do not use to create issues for read-only questions with no repository change.
 ---
 
 # Track GitHub Work
@@ -38,7 +38,7 @@ Keep GitHub updates sparse and evidential.
 - Never paste secrets, tokens, cookies, private addresses, personal email addresses, production records, or unsanitized command output.
 - Never claim a GitHub mutation or verification result without checking the returned state or command output.
 
-## Hand Off for Review
+## Record the Work Log
 
 After implementing and running the required checks, post one work-log comment in this form:
 
@@ -59,11 +59,27 @@ Remaining risks or follow-ups:
 Commit/PR: <link or "local working tree only">
 ```
 
-Then replace the workflow label with `status:review`. If a pull request exists, ensure its body names the issue and uses `Closes #<number>` only when merge will fully satisfy the acceptance criteria. A local patch or unmerged branch is review-ready, not completed.
+Do not move the issue to `status:review` merely because the work is on a branch or pull request.
+
+## Publish and Land Authorized Work
+
+Treat an explicit request to commit and push, publish, land, merge, or finish completed repository work as authorization to carry the scoped change through the repository pull-request path unless the user says to leave it unmerged or requests review first. A pull request is a delivery mechanism; do not hand routine pull, ready, or merge operations back to the user.
+
+1. Push the scoped branch and create or update a pull request that names the primary issue. Use `Closes #<number>` only when merge fully satisfies the acceptance criteria.
+2. Make a complete pull request ready immediately. Use a draft only for unfinished work or when the user explicitly asks for a draft.
+3. Inspect required checks, review requirements, conflicts, and mergeability. If checks exist, wait for them and investigate failures before merging.
+4. When the pull request is mergeable, required checks pass, and no human approval is required, merge it using the repository's established strategy; use squash when no strategy is established.
+5. Verify the resulting default-branch state, issue closure, labels, and follow-up dependencies. Do not claim completion from the merge command alone.
+
+This repository rule supersedes generic draft-by-default publishing guidance.
+
+## Hand Off for Human Review
+
+Use `status:review` only when the user explicitly asks to review before merge, repository protection requires human approval, or a concrete product/security decision falls outside the agent's authority. Make the pull request ready, replace the workflow label with `status:review`, and comment with the exact review decision or action needed. Never tell the user to pull a pull request locally.
 
 ## Complete or Stop
 
-Close with reason `completed` only after the implementation has landed and all acceptance criteria are satisfied. Remove workflow labels when closing.
+Close with reason `completed` only after the implementation has landed and all acceptance criteria are satisfied. Remove workflow labels when closing. If a closing pull-request reference closes the issue automatically, still verify closure and remove any remaining `status:*` label.
 
 - If work is cancelled, rejected, or superseded, record why and close as `not planned`.
 - If another issue duplicates it, link the canonical issue before closing as `not planned`.
