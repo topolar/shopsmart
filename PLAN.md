@@ -533,7 +533,7 @@ Implementace je rozdělená do sledovatelných GitHub Issues:
 | Ohraničený AI assist s review | [#14](https://github.com/topolar/shopsmart/issues/14) |
 | Produkční připravenost a veřejná beta | [#15](https://github.com/topolar/shopsmart/issues/15) |
 
-Implementované kontrakty v1 pro canonical products, retailer products, offers, evidence, tenant-owned watch rules, onboarding, dashboard a notifikace jsou definované Zod schématy v `packages/contracts`; publikační, matching, grouping a sorting pravidla včetně novelty keys zůstávají v deterministické doméně a TypeORM entity slouží pouze jako tenant-scoped persistence mapping. Databázově validované Better Auth sessions chrání onboarding i offers API. Dashboard zobrazuje pouze znovu validované published records a odděluje nekompatibilní jednotky. Aktuální stav realizace a ověření je autoritativně vedený v odkazovaných Issues.
+Implementované kontrakty v1 pro canonical products, retailer products, offers, evidence, tenant-owned watch rules, onboarding, dashboard, notifikace a connector operations jsou definované Zod schématy v `packages/contracts`; publikační, matching, grouping, sorting, TTL, early-refresh a backoff pravidla zůstávají v deterministické doméně a TypeORM entity slouží pouze jako persistence mapping. Databázově validované Better Auth sessions chrání onboarding i offers API. Dashboard zobrazuje pouze znovu validované published records a odděluje nekompatibilní jednotky. PostgreSQL connector jobs používají `FOR UPDATE SKIP LOCKED`, explicitní coverage manifesty a auditované retry/rate-limit/quarantine/dead-letter stavy. Aktuální stav realizace a ověření je autoritativně vedený v odkazovaných Issues.
 
 ### Fáze 0 — rozhodnutí a contracts
 

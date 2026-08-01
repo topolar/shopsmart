@@ -151,6 +151,8 @@ První lokální slice nepřidá Redis ani obecnou task queue. PostgreSQL bude d
 
 Workery budou bezpečně claimovat práci transakčně přes TypeORM QueryBuilder nebo parametrizované SQL a musí zvládnout opakované doručení bez duplicit. Redis/BullMQ nebo Temporal se přidá teprve při doložené potřebě vyšší propustnosti, delších workflow, časovačů nebo horizontálního škálování. Stav nabídky a potvrzené doručení zůstávají v PostgreSQL i po zavedení fronty.
 
+Connector scheduler používá jednu unikátní job řádku pro každý shared source scope a claimuje due práci přes PostgreSQL `FOR UPDATE SKIP LOCKED`. Stavový automat eviduje lease, rate-limit okno, deterministický backoff, dead letter, parser drift/quarantine, poslední úspěch, content hash a kompletnost coverage manifestu. Statický kontext má TTL; dynamická fakta se vždy revalidují a broken URL, rozpor, official change, neznámý retailer nebo explicitní požadavek vytvářejí auditovaný early-refresh trigger.
+
 Transakční notification outbox odděluje provider acceptance od potvrzeného doručení. Novelty event se označí jako notified pouze transakcí vyvolanou ověřeným delivery webhookem; přijatý send request čeká ve stavu `awaiting-confirmation`. Prvním plánovaným produkčním adapterem je Resend, podrobnosti a srovnání jsou v [ADR 0003](decisions/0003-transactional-email-provider.md).
 
 Raw snapshoty mohou být lokálně v ignorovaném datovém adresáři s metadaty v databázi. Před produkcí se přesunou do S3-compatible object storage s retention policy.

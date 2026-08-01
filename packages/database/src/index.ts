@@ -1,3 +1,4 @@
+export * from "./connector-job-store.js";
 export * from "./data-source.js";
 export * from "./matching-store.js";
 export * from "./normalization-record.js";
