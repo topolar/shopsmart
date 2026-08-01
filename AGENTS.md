@@ -18,6 +18,7 @@ Read `PLAN.md` and `README.md` before changing architecture or behavior. The rep
 8. **Privacy by design.** This is a public repository. Never commit personal email addresses, home addresses, API keys, cookies, retailer accounts, raw user exports, or production snapshots. Use synthetic fixtures and `.env.example` placeholders.
 9. **Respect source terms.** Prefer official APIs, feeds, product pages, and flyers. Respect robots.txt, rate limits, copyright, and site terms. Do not bypass authentication, CAPTCHAs, bot protection, paywalls, or technical access controls.
 10. **Transparent freshness.** Every UI/email claim must expose source and last verification time. A flyer price is not the same as store stock; label the evidence level explicitly.
+11. **Czech Republic only.** Product, region, retailer, price, source-access, and legal-policy work is limited to the Czech Republic. A source from another country is not a fallback for a missing authorized Czech source. Any expansion outside the Czech Republic requires an explicit new product decision.
 
 ## Canonical domain rules
 
