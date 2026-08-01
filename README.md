@@ -4,7 +4,7 @@ ShopSmart je plánovaná veřejná služba pro personalizované hlídání náku
 
 ## Stav
 
-Repozitář obsahuje dokumentační a architektonický základ a testovaný TypeScript baseline: deterministickou normalizaci a tenant-scoped matching, Better Auth sessions, český onboarding, verzované Zod kontrakty, TypeORM/PostgreSQL persistence a Fastify + Next.js/Tailwind vertical slice.
+Repozitář obsahuje dokumentační a architektonický základ a testovaný TypeScript baseline: deterministickou normalizaci a tenant-scoped matching, Better Auth sessions, český onboarding, verzované Zod kontrakty, TypeORM/PostgreSQL persistence, transakční notification outbox a Fastify + Next.js/Tailwind vertical slice.
 
 - [`PLAN.md`](PLAN.md) — podrobný plán, praktická zjištění z osobního pilotu, doménový model, architektura, roadmapa a hranice AI.
 - [`docs/TECHNICAL_ARCHITECTURE.md`](docs/TECHNICAL_ARCHITECTURE.md) — zvolený local-first stack, porty, Docker/PostgreSQL, Cloudflare Tunnel a cesta k produkčnímu hostingu.
@@ -59,7 +59,7 @@ pnpm smoke
 
 ## Další krok
 
-Rozšiřovat baseline podle navazujících GitHub Issues: první povolený shared-ingestion zdroj, dashboard a přesně jednou potvrzené notifikace.
+Rozšiřovat baseline podle navazujících GitHub Issues: první povolený shared-ingestion zdroj, dashboard a produkční Resend adapter s ověřenými webhooky.
 
 ## Vývojový workflow
 

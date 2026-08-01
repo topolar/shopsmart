@@ -6,12 +6,18 @@ import { CreateNormalizationRecords20260801090000 } from "./migrations/202608010
 import { CreateOfferCatalogue20260801100000 } from "./migrations/20260801100000-create-offer-catalogue.js";
 import { CreateTenantMatching20260801110000 } from "./migrations/20260801110000-create-tenant-matching.js";
 import { CreateAuthOnboarding20260801120000 } from "./migrations/20260801120000-create-auth-onboarding.js";
+import { CreateNotificationOutbox20260801130000 } from "./migrations/20260801130000-create-notification-outbox.js";
 import {
   matchRecordSchema,
   tenantRecordSchema,
   watchRuleRecordSchema,
 } from "./matching-store.js";
 import { normalizationRecordSchema } from "./normalization-record.js";
+import {
+  notificationDeliveryRecordSchema,
+  notificationEventRecordSchema,
+  notificationOutboxRecordSchema,
+} from "./notification-outbox.js";
 import {
   loyaltyMembershipRecordSchema,
   notificationPreferenceRecordSchema,
@@ -50,12 +56,16 @@ export function createAppDataSource(
       userStoreAccessRecordSchema,
       loyaltyMembershipRecordSchema,
       notificationPreferenceRecordSchema,
+      notificationOutboxRecordSchema,
+      notificationEventRecordSchema,
+      notificationDeliveryRecordSchema,
     ],
     migrations: [
       CreateNormalizationRecords20260801090000,
       CreateOfferCatalogue20260801100000,
       CreateTenantMatching20260801110000,
       CreateAuthOnboarding20260801120000,
+      CreateNotificationOutbox20260801130000,
     ],
     migrationsTableName: "shopsmart_migrations",
   });

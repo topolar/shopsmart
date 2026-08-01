@@ -158,6 +158,19 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  packages/notifications:
+    dependencies:
+      '@shopsmart/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@shopsmart/database':
+        specifier: workspace:*
+        version: link:../database
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
 packages:
 
   '@alloc/quick-lru@5.2.0':

@@ -450,7 +450,8 @@ Drahá lokalizace a stock check se spouštějí pouze pro kandidáta, který už
 - seskupí podle watch rule/canonical product;
 - řadí podle konfigurované unit ceny;
 - odešle přes provider s idempotency key;
-- delivery consumer v jedné transakci uloží provider ID a stav;
+- provider API acceptance uloží provider ID, ale novelty zůstává pending;
+- teprve ověřené provider delivery potvrzení v jedné transakci uloží stav a označí novelty jako notified;
 - failure zachová outbox pro retry;
 - dead-letter stav je viditelný operátorovi.
 
@@ -650,7 +651,7 @@ Před implementací je potřeba rozhodnout:
 - první region a řetězce;
 - konkrétní generátor OpenAPI z TypeScript kontraktů;
 - okamžik a konkrétní queue technologie po vyhodnocení PostgreSQL job leasingu;
-- transakční e-mailový provider;
+- produkční konfigurace vybraného Resend adapteru, domény a webhooku (výběr viz [`ADR 0003`](docs/decisions/0003-transactional-email-provider.md));
 - přesná definice „nejlepší nabídky“ pro pravidlo bez uživatelského prahu;
 - jak modelovat skupinové letáky a store-type scopes;
 - kdo a jak schvaluje AI product mappings;
