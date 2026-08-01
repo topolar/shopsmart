@@ -205,6 +205,10 @@ export class TypeOrmSourceIngestionStore {
           parserVersion: snapshot.parserVersion,
           etag: snapshot.etag,
           lastModified: snapshot.lastModified,
+          rawStorageKey: snapshot.rawStorageKey,
+          sourceUrl: snapshot.sourceUrl,
+          retrievedAt: snapshot.retrievedAt.toISOString(),
+          httpStatus: snapshot.httpStatus,
         }
       : null;
   }
@@ -513,14 +517,15 @@ export class TypeOrmSourceIngestionStore {
     variantAttributes: Record<string, string>;
     reviewedBy: string;
     reviewedAt: string;
-  }): Promise<void> {
+    allowedSourceScopeKeys?: readonly string[];
+  }): Promise<Readonly<{ sourceScopeKey: string }>> {
     const reviewedAt = parseCanonicalTimestamp(input.reviewedAt, "reviewedAt");
     const reviewedBy = input.reviewedBy.trim();
     if (!reviewedBy || reviewedBy.length > 160) {
       throw new Error("reviewedBy must identify the local operator.");
     }
     validateVariantAttributes(input.variantAttributes);
-    await this.dataSource.transaction(async (manager) => {
+    return this.dataSource.transaction(async (manager) => {
       const candidates = manager.getRepository(
         RetailerProductMappingCandidateRecord,
       );
@@ -531,6 +536,12 @@ export class TypeOrmSourceIngestionStore {
       if (!candidate) throw new Error("UNKNOWN_MAPPING_CANDIDATE");
       if (candidate.status !== "pending") {
         throw new Error("MAPPING_ALREADY_REVIEWED");
+      }
+      if (
+        input.allowedSourceScopeKeys &&
+        !input.allowedSourceScopeKeys.includes(candidate.sourceScopeKey)
+      ) {
+        throw new Error("MAPPING_CANDIDATE_SCOPE_MISMATCH");
       }
       const canonical = await manager
         .getRepository(CanonicalProductClassRecord)
@@ -555,6 +566,7 @@ export class TypeOrmSourceIngestionStore {
           reviewedAt,
         },
       );
+      return { sourceScopeKey: candidate.sourceScopeKey };
     });
   }
 

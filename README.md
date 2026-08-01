@@ -86,11 +86,12 @@ Albert konektor sdíleně obsluhuje oba české typy letáku a zůstává v Type
 pnpm ingest:albert
 pnpm mapping:albert list --scope supermarket
 pnpm mapping:albert list --scope hypermarket
+pnpm mapping:albert reprocess --scope supermarket
 pnpm mapping:albert classes
 pnpm mapping:albert approve --candidate <candidate-uuid> --canonical <class-uuid> --reviewer local-operator --attributes '{"state":"fresh"}'
 ```
 
-`ingest:albert` načte oficiální index jednou pouze tehdy, když je alespoň jeden scope due, a každou PDF třídu nejvýše jednou za 12 hodin. Raw PDF je jen v ignorovaném `SHOPSMART_ALBERT_RAW_SNAPSHOT_DIR` a po 72 hodinách se maže. Bez explicitního mapování vznikne pouze review kandidát; leták netvrdí skladovou dostupnost.
+`ingest:albert` načte oficiální index jednou pouze tehdy, když je alespoň jeden scope due, a každou PDF třídu nejvýše jednou za 12 hodin. Raw PDF je jen v ignorovaném `SHOPSMART_ALBERT_RAW_SNAPSHOT_DIR` a po 72 hodinách se maže. Schválení mapování okamžitě znovu zpracuje uchované PDF bez nového stažení; příkaz `reprocess` lze bezpečně zopakovat po přechodné chybě. Bez explicitního mapování vznikne pouze review kandidát; leták netvrdí skladovou dostupnost.
 
 Navazující krok je první provozní review zachycených kandidátů a podle GitHub Issues produkční Resend adapter s ověřenými webhooky.
 

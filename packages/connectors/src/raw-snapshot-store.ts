@@ -6,6 +6,7 @@ import {
   unlink,
   writeFile,
 } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { isAbsolute, relative, resolve } from "node:path";
 
 type WriteRawSnapshotInput = Readonly<{
@@ -56,6 +57,25 @@ export class FileSystemRawSnapshotStore {
       retrievedAt: input.retrievedAt,
       rawDeleteAt: input.rawDeleteAt,
     });
+  }
+
+  async readBinary(storageKey: string, extension: "pdf"): Promise<Uint8Array> {
+    const match = new RegExp(`^\\d{13}-([a-f0-9]{64})\\.${extension}$`).exec(
+      storageKey,
+    );
+    if (!match)
+      throw new Error("storageKey is not a retained binary snapshot.");
+    const absolutePath = this.resolveStorageKey(storageKey);
+    const metadata = await lstat(absolutePath);
+    if (!metadata.isFile() || metadata.isSymbolicLink()) {
+      throw new Error("Retained snapshot is not a regular file.");
+    }
+    const bytes = await readFile(absolutePath);
+    const contentHash = createHash("sha256").update(bytes).digest("hex");
+    if (contentHash !== match[1]) {
+      throw new Error("Retained snapshot no longer matches its content hash.");
+    }
+    return new Uint8Array(bytes);
   }
 
   private async writeContent(input: {

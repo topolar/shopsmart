@@ -309,6 +309,7 @@ export async function processAlbertLeafletSnapshot(input: {
   }
   // PDF.js may transfer/detach the buffer it receives. Keep the fetched bytes
   // intact because they are hashed again and written to the evidence archive.
+  installSumPreciseFallback();
   const extracted = await (input.extractItems ?? extractTextItems)(
     input.pdfBytes.slice(),
   );
@@ -318,6 +319,29 @@ export async function processAlbertLeafletSnapshot(input: {
     ]);
   }
   return processAlbertLeafletTextItems({ ...input, pages: extracted.items });
+}
+
+function installSumPreciseFallback(): void {
+  const math = Math as typeof Math & {
+    sumPrecise?: (values: Iterable<number>) => number;
+  };
+  if (math.sumPrecise) return;
+  Object.defineProperty(math, "sumPrecise", {
+    configurable: true,
+    value(values: Iterable<number>) {
+      let sum = 0;
+      let correction = 0;
+      for (const value of values) {
+        const next = sum + value;
+        correction +=
+          Math.abs(sum) >= Math.abs(value)
+            ? sum - next + value
+            : value - next + sum;
+        sum = next;
+      }
+      return sum + correction;
+    },
+  });
 }
 
 export function createAlbertNotModifiedResult(input: {

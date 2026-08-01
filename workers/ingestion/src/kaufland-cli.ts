@@ -1,7 +1,10 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { FileSystemRawSnapshotStore } from "@shopsmart/connectors";
+import {
+  FileSystemRawSnapshotStore,
+  KAUFLAND_PRAHA_VYPICH_SCOPE,
+} from "@shopsmart/connectors";
 import {
   createAppDataSource,
   TypeOrmConnectorJobStore,
@@ -92,7 +95,11 @@ async function main(): Promise<void> {
     }
     if (command.kind === "approve-mapping") {
       const reviewedAt = new Date().toISOString();
-      await ingestion.approveKauflandMapping({ ...command, reviewedAt });
+      await ingestion.approveKauflandMapping({
+        ...command,
+        reviewedAt,
+        allowedSourceScopeKeys: [KAUFLAND_PRAHA_VYPICH_SCOPE.key],
+      });
       writeJson({
         status: "approved",
         candidateId: command.candidateId,

@@ -237,12 +237,28 @@ describeWithDatabase("Kaufland source ingestion persistence", () => {
       }),
     ).rejects.toThrow("MAPPING_ATTRIBUTE_MISMATCH");
 
-    await store.approveKauflandMapping({
-      candidateId: candidate.id,
-      canonicalProductClassId,
-      variantAttributes: { preparation: "fresh" },
-      reviewedBy: "local-operator",
-      reviewedAt: "2026-08-01T13:00:00.000Z",
+    await expect(
+      store.approveKauflandMapping({
+        candidateId: candidate.id,
+        canonicalProductClassId,
+        variantAttributes: { preparation: "fresh" },
+        reviewedBy: "local-operator",
+        reviewedAt: "2026-08-01T12:45:00.000Z",
+        allowedSourceScopeKeys: [ALBERT_SUPERMARKET_SCOPE.key],
+      }),
+    ).rejects.toThrow("MAPPING_CANDIDATE_SCOPE_MISMATCH");
+
+    await expect(
+      store.approveKauflandMapping({
+        candidateId: candidate.id,
+        canonicalProductClassId,
+        variantAttributes: { preparation: "fresh" },
+        reviewedBy: "local-operator",
+        reviewedAt: "2026-08-01T13:00:00.000Z",
+        allowedSourceScopeKeys: [KAUFLAND_PRAHA_VYPICH_SCOPE.key],
+      }),
+    ).resolves.toEqual({
+      sourceScopeKey: KAUFLAND_PRAHA_VYPICH_SCOPE.key,
     });
 
     await expect(store.loadApprovedKauflandMappings()).resolves.toEqual([
