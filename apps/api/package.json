@@ -15,10 +15,13 @@
     "@shopsmart/contracts": "workspace:*",
     "@shopsmart/database": "workspace:*",
     "@shopsmart/domain": "workspace:*",
+    "better-auth": "1.6.25",
     "fastify": "5.11.0",
+    "pg": "8.22.0",
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@types/pg": "8.15.5",
     "tsx": "4.23.1",
     "typescript": "6.0.3",
     "vitest": "4.1.10"

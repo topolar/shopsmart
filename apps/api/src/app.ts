@@ -6,19 +6,37 @@ import {
   validatorCompiler,
 } from "@fastify/type-provider-zod";
 import {
+  onboardingRequestSchema,
+  onboardingResponseSchema,
   normalizationErrorSchema,
   normalizeUnitPriceRequestSchema,
   normalizeUnitPriceResponseSchema,
+  tenantAuthorizationErrorSchema,
 } from "@shopsmart/contracts";
-import type { NormalizationStore } from "@shopsmart/database";
+import type {
+  NormalizationStore,
+  TypeOrmOnboardingStore,
+} from "@shopsmart/database";
 import {
   IncompatibleUnitError,
   InvalidNormalizationInputError,
   normalizeUnitPrice,
 } from "@shopsmart/domain";
 import Fastify from "fastify";
+import { fromNodeHeaders } from "better-auth/node";
+import { z } from "zod/v4";
 
-export async function buildApp(normalizationStore: NormalizationStore) {
+import type { ShopSmartAuth } from "./auth.js";
+
+type AppDependencies = Readonly<{
+  auth: ShopSmartAuth;
+  onboardingStore: TypeOrmOnboardingStore;
+}>;
+
+export async function buildApp(
+  normalizationStore: NormalizationStore,
+  dependencies?: AppDependencies,
+) {
   const app = Fastify({ logger: false });
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
@@ -36,6 +54,76 @@ export async function buildApp(normalizationStore: NormalizationStore) {
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
 
   typedApp.get("/health", async () => ({ status: "ok" }));
+
+  if (dependencies) {
+    typedApp.route({
+      method: ["GET", "POST"],
+      url: "/api/auth/*",
+      async handler(request, reply) {
+        const origin = request.headers.origin ?? "http://127.0.0.1";
+        const authRequest = new Request(new URL(request.url, origin), {
+          method: request.method,
+          headers: fromNodeHeaders(request.headers),
+          ...(!["GET", "HEAD"].includes(request.method) && request.body
+            ? { body: JSON.stringify(request.body) }
+            : {}),
+        });
+        const response = await dependencies.auth.handler(authRequest);
+
+        response.headers.forEach((value, name) => {
+          if (name !== "set-cookie") reply.header(name, value);
+        });
+        const cookies = response.headers.getSetCookie();
+        if (cookies.length > 0) reply.header("set-cookie", cookies);
+        const body = await response.text();
+        reply.code(response.status);
+        return response.headers
+          .get("content-type")
+          ?.includes("application/json")
+          ? JSON.parse(body)
+          : body;
+      },
+    });
+
+    typedApp.put(
+      "/api/v1/tenants/:tenantId/onboarding",
+      {
+        schema: {
+          params: z.object({ tenantId: z.uuid() }),
+          body: onboardingRequestSchema,
+          response: {
+            200: onboardingResponseSchema,
+            401: tenantAuthorizationErrorSchema,
+            403: tenantAuthorizationErrorSchema,
+          },
+        },
+      },
+      async (request, reply) => {
+        const session = await dependencies.auth.api.getSession({
+          headers: fromNodeHeaders(request.headers),
+        });
+        if (!session) {
+          return reply.code(401).send({
+            code: "UNAUTHENTICATED",
+            message: "A valid session is required.",
+          });
+        }
+        if (session.user.tenantId !== request.params.tenantId) {
+          return reply.code(403).send({
+            code: "TENANT_SCOPE_VIOLATION",
+            message: "The requested tenant is outside the active session.",
+          });
+        }
+
+        const saved = await dependencies.onboardingStore.save(
+          session.user.id,
+          session.user.tenantId,
+          request.body,
+        );
+        return reply.code(200).send(saved);
+      },
+    );
+  }
 
   typedApp.post(
     "/api/v1/normalizations",

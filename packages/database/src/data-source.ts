@@ -5,12 +5,20 @@ import { DataSource } from "typeorm";
 import { CreateNormalizationRecords20260801090000 } from "./migrations/20260801090000-create-normalization-records.js";
 import { CreateOfferCatalogue20260801100000 } from "./migrations/20260801100000-create-offer-catalogue.js";
 import { CreateTenantMatching20260801110000 } from "./migrations/20260801110000-create-tenant-matching.js";
+import { CreateAuthOnboarding20260801120000 } from "./migrations/20260801120000-create-auth-onboarding.js";
 import {
   matchRecordSchema,
   tenantRecordSchema,
   watchRuleRecordSchema,
 } from "./matching-store.js";
 import { normalizationRecordSchema } from "./normalization-record.js";
+import {
+  loyaltyMembershipRecordSchema,
+  notificationPreferenceRecordSchema,
+  onboardingProfileRecordSchema,
+  storeRecordSchema,
+  userStoreAccessRecordSchema,
+} from "./onboarding-store.js";
 import {
   canonicalProductClassRecordSchema,
   offerRecordSchema,
@@ -37,11 +45,17 @@ export function createAppDataSource(
       tenantRecordSchema,
       watchRuleRecordSchema,
       matchRecordSchema,
+      storeRecordSchema,
+      onboardingProfileRecordSchema,
+      userStoreAccessRecordSchema,
+      loyaltyMembershipRecordSchema,
+      notificationPreferenceRecordSchema,
     ],
     migrations: [
       CreateNormalizationRecords20260801090000,
       CreateOfferCatalogue20260801100000,
       CreateTenantMatching20260801110000,
+      CreateAuthOnboarding20260801120000,
     ],
     migrationsTableName: "shopsmart_migrations",
   });
