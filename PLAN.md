@@ -4,6 +4,8 @@
 
 ShopSmart má být veřejná víceuživatelská služba, ve které se uživatel přihlásí, nastaví svou lokalitu, dostupné kamenné prodejny a e-shopy, vybere sledované produkty a podmínky výhodnosti a dostává aktuální výsledky ve webovém rozhraní i v agregovaném e-mailu.
 
+**Geografický produktový scope je pouze Česká republika.** Všechny regiony, prodejny, retailer zdroje, ceny a právní podmínky první i navazující implementace musí být české. Jiná země nesmí sloužit jako fallback při chybějícím povoleném českém zdroji; rozšíření mimo ČR vyžaduje nové explicitní produktové rozhodnutí.
+
 Základní architektonická myšlenka:
 
 > Nabídku stáhnout a normalizovat jednou pro daný obchod, region nebo pobočkový rozsah; personalizované porovnání pak provést levně a deterministicky pro všechny relevantní uživatele.

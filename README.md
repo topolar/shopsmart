@@ -2,6 +2,8 @@
 
 ShopSmart je plánovaná veřejná služba pro personalizované hlídání nákupních nabídek. Uživatel si nastaví produkty, varianty, cenové limity, lokalitu, dostupné kamenné pobočky, e-shopy a věrnostní programy. Služba sdíleně získává a normalizuje nabídky a deterministicky je porovnává pro webový přehled a agregované e-maily.
 
+Produktový a datový geografický rozsah je výhradně Česká republika. České regiony, prodejny, ceny v CZK a české podmínky zdrojů jsou součástí kontraktu; zdroj z jiné země není náhradou za chybějící povolený český zdroj.
+
 ## Stav
 
 Repozitář obsahuje dokumentační a architektonický základ a testovaný TypeScript baseline: deterministickou normalizaci a tenant-scoped matching, Better Auth sessions, český onboarding, evidence-backed dashboard, candidate-first online stock gate, verzované Zod kontrakty, TypeORM/PostgreSQL persistence, transakční notification outbox, shared connector job leasing/health a Fastify + Next.js/Tailwind vertical slice.

@@ -8,6 +8,8 @@ Sledování práce: [GitHub Issue #2](https://github.com/topolar/shopsmart/issue
 
 ShopSmart začne jako local-first monorepo na vývojářském počítači. PostgreSQL poběží v samostatném Docker kontejneru, zatímco web, API a workery mohou při vývoji běžet přímo na hostiteli kvůli rychlému hot reloadu. Pozdější vzdálený přístup povede přes Cloudflare Tunnel pouze na webový vstup. Produkční nasazení přesune stejné oddělené procesy do kontejnerů nebo spravovaných služeb bez změny doménových kontraktů.
 
+Geografický doménový scope je pouze Česká republika. Konektory smějí implementovat jen české regiony a české retailer zdroje s odpovídajícím oprávněním; technicky dostupný zdroj z jiné země není přípustný fallback. Datové kontrakty mohou používat obecné ISO typy, ale tato technická obecnost sama o sobě nerozšiřuje produktový scope mimo ČR.
+
 Zvolený stack používá TypeScript end-to-end:
 
 - workspace a package manager: pnpm workspace s jediným lockfilem;
