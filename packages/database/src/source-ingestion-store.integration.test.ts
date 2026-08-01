@@ -2,9 +2,12 @@ import {
   ALBERT_RETAILER_ID,
   ALBERT_SUPERMARKET_SCOPE,
   createAlbertExternalId,
+  createGlobusExternalId,
+  GLOBUS_BRNO_SCOPE,
   KAUFLAND_PRAHA_VYPICH_SCOPE,
   KAUFLAND_STORE_PARSER_VERSION,
   processAlbertLeafletTextItems,
+  processGlobusFeaturedSnapshot,
   processKauflandStoreSnapshot,
 } from "@shopsmart/connectors";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -359,6 +362,62 @@ describeWithDatabase("Kaufland source ingestion persistence", () => {
       }),
     ]);
   });
+
+  it("persists Globus Brno evidence and exposes its immutable mapping queue", async () => {
+    if (!dataSource || !store) throw new Error("Store was not initialized.");
+    const exactName = "Synthetic Globus bananas";
+    const externalId = createGlobusExternalId({
+      exactName,
+      declaredPackage: "1 kg",
+    });
+    const result = processGlobusFeaturedSnapshot({
+      html: syntheticGlobusPage,
+      httpStatus: 200,
+      retrievedAt: "2026-08-01T12:00:00.000Z",
+      productMappings: [],
+    });
+    await store.persistGlobus(result, {
+      rawStorageKey: `1785844800000-${result.retrieval.contentHash}.html`,
+    });
+
+    await expect(
+      store.latestRetainedRetrieval(GLOBUS_BRNO_SCOPE.key),
+    ).resolves.toMatchObject({
+      contentHash: result.retrieval.contentHash,
+      rawStorageKey: `1785844800000-${result.retrieval.contentHash}.html`,
+      sourceUrl: GLOBUS_BRNO_SCOPE.sourceUrl,
+    });
+
+    await expect(store.listPendingGlobusMappings()).resolves.toEqual([
+      expect.objectContaining({
+        externalId,
+        exactName: `${exactName} — 1 kg`,
+        status: "pending",
+      }),
+    ]);
+    const candidate = (await store.listPendingGlobusMappings())[0]!;
+    await store.approveKauflandMapping({
+      candidateId: candidate.id,
+      canonicalProductClassId,
+      variantAttributes: {},
+      reviewedBy: "local-operator",
+      reviewedAt: "2026-08-01T13:00:00.000Z",
+      allowedSourceScopeKeys: [GLOBUS_BRNO_SCOPE.key],
+    });
+    await expect(store.loadApprovedGlobusMappings()).resolves.toEqual([
+      {
+        externalId,
+        canonicalProductClassId,
+        comparisonUnit: "kilogram",
+        variantAttributes: {},
+      },
+    ]);
+    await expect(
+      dataSource.getRepository(StoreRecord).findOneByOrFail({
+        id: GLOBUS_BRNO_SCOPE.storeId,
+      }),
+    ).resolves.toMatchObject({ officialName: "Globus Brno", city: "Brno" });
+  });
 });
 
 function structuredItem(str: string, x: number, y: number, fontSize: number) {
@@ -376,6 +435,24 @@ function structuredItem(str: string, x: number, y: number, fontSize: number) {
 }
 
 async function cleanup(dataSource: DataSource) {
+  await dataSource
+    .getRepository(RetailerProductMappingCandidateRecord)
+    .delete({ sourceScopeKey: GLOBUS_BRNO_SCOPE.key });
+  await dataSource
+    .getRepository(QuarantinedSourceCandidateRecord)
+    .delete({ sourceScopeKey: GLOBUS_BRNO_SCOPE.key });
+  await dataSource
+    .getRepository(SourceSnapshotRecord)
+    .delete({ sourceScopeKey: GLOBUS_BRNO_SCOPE.key });
+  await dataSource.getRepository(OfferRecord).delete({
+    sourceScopeId: GLOBUS_BRNO_SCOPE.sourceScopeId,
+  });
+  await dataSource.getRepository(RetailerProductRecord).delete({
+    retailerId: GLOBUS_BRNO_SCOPE.retailerId,
+  });
+  await dataSource.getRepository(StoreRecord).delete({
+    id: GLOBUS_BRNO_SCOPE.storeId,
+  });
   await dataSource
     .getRepository(RetailerProductMappingCandidateRecord)
     .createQueryBuilder()
@@ -470,3 +547,13 @@ const syntheticIngestionPage = `<!doctype html>
     </a>
   </section>
 </main></body></html>`;
+
+const syntheticGlobusPage = `<!doctype html><main><section data-featured-offers>
+  <h2>Akční nabídka Brno</h2>
+  <article data-featured-offer>
+    <h3>Synthetic Globus bananas</h3><p data-package>1 kg</p>
+    <p data-unit-price data-price-kind="public">24,90 Kč / kg</p>
+    <p data-price-kind="public">24,90 Kč</p>
+    <p data-validity>Platné do: 4. 8.</p>
+  </article>
+</section></main>`;

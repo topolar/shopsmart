@@ -66,7 +66,7 @@ TypeScript workers
   └── notification outbox delivery
 ```
 
-Adresáře vznikají pouze s první testovanou vertical slice; `workers/ingestion` nyní obsahuje sdílený Kaufland handler:
+Adresáře vznikají pouze s první testovanou vertical slice; `workers/ingestion` nyní obsahuje sdílené Kaufland, Albert a Globus handlery:
 
 ```text
 apps/
@@ -159,7 +159,7 @@ Obecná online obslužnost používá stejnou `static_context_cache`, ale pod na
 
 Transakční notification outbox odděluje provider acceptance od potvrzeného doručení. Novelty event se označí jako notified pouze transakcí vyvolanou ověřeným delivery webhookem; přijatý send request čeká ve stavu `awaiting-confirmation`. Prvním plánovaným produkčním adapterem je Resend, podrobnosti a srovnání jsou v [ADR 0003](decisions/0003-transactional-email-provider.md).
 
-Raw snapshoty mohou být lokálně v ignorovaném datovém adresáři s metadaty v databázi. Před produkcí se přesunou do šifrovaného S3-compatible object storage s omezeným přístupem a konektorovou retention policy. První Kaufland scope podle [`ADR 0004`](decisions/0004-first-retailer-source.md) maže raw HTML po 72 hodinách; hash, HTTP metadata a normalizovaná fakta zůstávají. Testy používají syntetické fixtures, nikoli kopii živé stránky.
+Raw snapshoty mohou být lokálně v ignorovaném datovém adresáři s metadaty v databázi. Před produkcí se přesunou do šifrovaného S3-compatible object storage s omezeným přístupem a konektorovou retention policy. Kaufland, Albert a úzký Globus Brno scope podle [`ADR 0004`](decisions/0004-first-retailer-source.md), [`ADR 0005`](decisions/0005-albert-leaflet-source.md) a [`ADR 0006`](decisions/0006-globus-brno-featured-offers.md) mažou raw evidence po 72 hodinách; hash, HTTP metadata a normalizovaná fakta zůstávají. Testy používají syntetické fixtures, nikoli kopii živé stránky.
 
 ## 7. Web a lokalizace
 
