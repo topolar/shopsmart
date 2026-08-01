@@ -8,3 +8,4 @@ export * from "./offers-dashboard-store.js";
 export * from "./onboarding-store.js";
 export * from "./offer-record.js";
 export * from "./offer-store.js";
+export * from "./source-ingestion-store.js";

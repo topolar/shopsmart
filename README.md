@@ -63,7 +63,7 @@ pnpm smoke
 
 ## Další krok
 
-Implementovat podle navazujících GitHub Issues první Kaufland shared-ingestion konektor a produkční Resend adapter s ověřenými webhooky.
+Rozšířit první Kaufland shared-ingestion konektor o provozní mapování retailer produktů a podle navazujících GitHub Issues implementovat produkční Resend adapter s ověřenými webhooky.
 
 ## Vývojový workflow
 
