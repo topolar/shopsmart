@@ -8,13 +8,15 @@ import {
 } from "@shopsmart/database";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { integrationDatabaseUrl } from "../../../tests/integration-database.js";
+
 import {
   NotificationDeliveryService,
   NotificationProviderError,
   type NotificationProvider,
 } from "./delivery.js";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = integrationDatabaseUrl();
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
 const tenantId = "018f5f70-7b5d-7a21-9f49-01b7f63a9601";
 const watchRuleId = "018f5f70-7b5d-7a21-9f49-01b7f63a9602";

@@ -8,6 +8,8 @@ import {
 } from "@shopsmart/domain";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { integrationDatabaseUrl } from "../../../tests/integration-database.js";
+
 import {
   AiAssistCacheRecord,
   AiAssistFailureRecord,
@@ -23,7 +25,7 @@ import {
   TypeOrmSourceIngestionStore,
 } from "./source-ingestion-store.js";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = integrationDatabaseUrl();
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
 const sourceHash = "a".repeat(64);
 

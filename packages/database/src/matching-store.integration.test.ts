@@ -1,6 +1,8 @@
 import { publishOffer, matchOffer } from "@shopsmart/domain";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { integrationDatabaseUrl } from "../../../tests/integration-database.js";
+
 import { createAppDataSource } from "./data-source.js";
 import {
   MatchRecord,
@@ -17,7 +19,7 @@ import { TypeOrmOfferStore } from "./offer-store.js";
 import { TypeOrmOffersDashboardStore } from "./offers-dashboard-store.js";
 import { StoreRecord } from "./onboarding-store.js";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = integrationDatabaseUrl();
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
 const tenantA = "018f5f70-7b5d-7a21-9f49-01b7f63a9301";
 const tenantB = "018f5f70-7b5d-7a21-9f49-01b7f63a9302";

@@ -1,10 +1,16 @@
 import {
+  ALBERT_RETAILER_ID,
+  ALBERT_SUPERMARKET_SCOPE,
+  createAlbertExternalId,
   KAUFLAND_PRAHA_VYPICH_SCOPE,
   KAUFLAND_STORE_PARSER_VERSION,
+  processAlbertLeafletTextItems,
   processKauflandStoreSnapshot,
 } from "@shopsmart/connectors";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { DataSource } from "typeorm";
+
+import { integrationDatabaseUrl } from "../../../tests/integration-database.js";
 
 import { createAppDataSource } from "./data-source.js";
 import {
@@ -20,7 +26,7 @@ import {
 } from "./offer-record.js";
 import { StoreRecord } from "./onboarding-store.js";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = integrationDatabaseUrl();
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
 const canonicalProductClassId = "018f5f70-7b5d-7a21-9f49-01b7f63a9501";
 
@@ -257,7 +263,101 @@ describeWithDatabase("Kaufland source ingestion persistence", () => {
       }),
     ).rejects.toThrow("MAPPING_ALREADY_REVIEWED");
   });
+
+  it("persists Albert PDF evidence and its mapping queue through the shared ingestion boundary", async () => {
+    if (!dataSource || !store) throw new Error("Store was not initialized.");
+    const exactName = "Synthetic Albert bananas";
+    const mappedExternalId = createAlbertExternalId({
+      kind: "supermarket",
+      exactName,
+      declaredPackage: "1 kg",
+    });
+    const result = processAlbertLeafletTextItems({
+      manifest: {
+        externalId: "3259903",
+        kind: "supermarket",
+        title: "Synthetic Albert supermarket leaflet",
+        validFrom: "2026-07-28T22:00:00.000Z",
+        validTo: "2026-08-04T21:59:59.999Z",
+        viewerUrl: "https://letaky.albert.cz/synthetic-supermarket/",
+        pdfUrl: "https://view.publitas.com/90263/3259903/pdfs/synthetic.pdf",
+      },
+      pages: [
+        [
+          structuredItem(exactName, 100, 200, 11),
+          structuredItem("• 1 kg", 100, 190, 8),
+          structuredItem("24", 130, 220, 40),
+          structuredItem("90", 154, 230, 22),
+          structuredItem("Unknown Albert cheese", 300, 200, 11),
+          structuredItem("• 100 g", 300, 190, 8),
+          structuredItem("39", 330, 220, 40),
+          structuredItem("90", 354, 230, 22),
+        ],
+      ],
+      pdfBytes: new TextEncoder().encode("synthetic PDF evidence"),
+      httpStatus: 200,
+      retrievedAt: "2026-08-01T12:00:00.000Z",
+      productMappings: [
+        {
+          externalId: mappedExternalId,
+          canonicalProductClassId,
+          comparisonUnit: "kilogram",
+          variantAttributes: { preparation: "fresh" },
+        },
+      ],
+    });
+
+    await store.persistAlbert(result, {
+      manifest: {
+        externalId: "3259903",
+        kind: "supermarket",
+        title: "Synthetic Albert supermarket leaflet",
+        validFrom: "2026-07-28T22:00:00.000Z",
+        validTo: "2026-08-04T21:59:59.999Z",
+        viewerUrl: "https://letaky.albert.cz/synthetic-supermarket/",
+        pdfUrl: "https://view.publitas.com/90263/3259903/pdfs/synthetic.pdf",
+      },
+      rawStorageKey: `1785844800000-${result.retrieval.contentHash}.pdf`,
+    });
+
+    await expect(
+      dataSource.getRepository(StoreRecord).findOneByOrFail({
+        id: ALBERT_SUPERMARKET_SCOPE.storeId,
+      }),
+    ).resolves.toMatchObject({
+      retailerId: ALBERT_RETAILER_ID,
+      officialName: ALBERT_SUPERMARKET_SCOPE.storeName,
+      city: "Czech Republic",
+    });
+    await expect(
+      dataSource.getRepository(OfferRecord).countBy({
+        sourceScopeId: ALBERT_SUPERMARKET_SCOPE.sourceScopeId,
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      store.listPendingAlbertMappings("supermarket"),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        exactName: "Unknown Albert cheese — 100 g",
+        status: "pending",
+      }),
+    ]);
+  });
 });
+
+function structuredItem(str: string, x: number, y: number, fontSize: number) {
+  return {
+    str,
+    x,
+    y,
+    width: str.length * fontSize * 0.5,
+    height: fontSize,
+    fontSize,
+    fontFamily: "Synthetic",
+    dir: "ltr",
+    hasEOL: true,
+  };
+}
 
 async function cleanup(dataSource: DataSource) {
   await dataSource
@@ -269,7 +369,31 @@ async function cleanup(dataSource: DataSource) {
     })
     .execute();
   await dataSource
+    .getRepository(RetailerProductMappingCandidateRecord)
+    .createQueryBuilder()
+    .delete()
+    .where("source_scope_key = :scope", {
+      scope: ALBERT_SUPERMARKET_SCOPE.key,
+    })
+    .execute();
+  await dataSource
     .getRepository(QuarantinedSourceCandidateRecord)
+    .createQueryBuilder()
+    .delete()
+    .where("source_scope_key = :scope", {
+      scope: KAUFLAND_PRAHA_VYPICH_SCOPE.key,
+    })
+    .execute();
+  await dataSource
+    .getRepository(QuarantinedSourceCandidateRecord)
+    .createQueryBuilder()
+    .delete()
+    .where("source_scope_key = :scope", {
+      scope: ALBERT_SUPERMARKET_SCOPE.key,
+    })
+    .execute();
+  await dataSource
+    .getRepository(SourceSnapshotRecord)
     .createQueryBuilder()
     .delete()
     .where("source_scope_key = :scope", {
@@ -281,7 +405,7 @@ async function cleanup(dataSource: DataSource) {
     .createQueryBuilder()
     .delete()
     .where("source_scope_key = :scope", {
-      scope: KAUFLAND_PRAHA_VYPICH_SCOPE.key,
+      scope: ALBERT_SUPERMARKET_SCOPE.key,
     })
     .execute();
   await dataSource.getRepository(OfferRecord).delete({
@@ -290,8 +414,17 @@ async function cleanup(dataSource: DataSource) {
   await dataSource.getRepository(RetailerProductRecord).delete({
     retailerId: KAUFLAND_PRAHA_VYPICH_SCOPE.retailerId,
   });
+  await dataSource.getRepository(OfferRecord).delete({
+    sourceScopeId: ALBERT_SUPERMARKET_SCOPE.sourceScopeId,
+  });
+  await dataSource.getRepository(RetailerProductRecord).delete({
+    retailerId: ALBERT_RETAILER_ID,
+  });
   await dataSource.getRepository(StoreRecord).delete({
     id: KAUFLAND_PRAHA_VYPICH_SCOPE.storeId,
+  });
+  await dataSource.getRepository(StoreRecord).delete({
+    id: ALBERT_SUPERMARKET_SCOPE.storeId,
   });
   await dataSource.getRepository(CanonicalProductClassRecord).delete({
     id: canonicalProductClassId,

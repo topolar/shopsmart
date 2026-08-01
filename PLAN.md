@@ -334,6 +334,8 @@ Je-li cena celostátní, ingest je celostátní. Liší-li se podle regionu nebo
 
 První schválený scope je oficiální veřejná stránka `Kaufland Praha-Vypich`. Přístupový, rate-limit, retenční a fail-closed kontrakt je v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md). Jde pouze o fyzickou letákovou aplikovatelnost pro konkrétní pobočku, nikoli o důkaz aktuálního skladového kusu.
 
+Druhý schválený český source je oficiální Albert index supermarketových a hypermarketových letáků s přímo odkazovanými PDF. Sdílený fetch, poziční TypeScript extrakce, 12hodinové minimum, 72hodinová raw retention a hranice store-type aplikovatelnosti jsou v [`ADR 0005`](docs/decisions/0005-albert-leaflet-source.md). Ani tento leták není důkazem aktuálního skladového kusu.
+
 ---
 
 ## 5. Doménový model
@@ -538,14 +540,15 @@ Implementace je rozdělená do sledovatelných GitHub Issues:
 | Online service area a product stock | [#13](https://github.com/topolar/shopsmart/issues/13) |
 | Ohraničený AI assist s review | [#14](https://github.com/topolar/shopsmart/issues/14) |
 | Produkční připravenost a veřejná beta | [#15](https://github.com/topolar/shopsmart/issues/15) |
+| Sdílený ingest českých Albert letáků | [#38](https://github.com/topolar/shopsmart/issues/38) |
 
-Implementované kontrakty v1 pro canonical products, retailer products, offers, evidence, tenant-owned watch rules, onboarding, dashboard, notifikace, connector operations a online stock validation jsou definované Zod schématy v `packages/contracts`; publikační, matching, grouping, sorting, TTL, early-refresh, backoff a candidate-first online pravidla zůstávají v deterministické doméně a TypeORM entity slouží pouze jako persistence mapping. Databázově validované Better Auth sessions chrání onboarding i offers API. Dashboard zobrazuje pouze znovu validované published records, odděluje nekompatibilní jednotky a rozlišuje letákovou aplikovatelnost od ověřeného online stocku. PostgreSQL connector jobs používají `FOR UPDATE SKIP LOCKED`, explicitní coverage manifesty a auditované retry/rate-limit/quarantine/dead-letter stavy. První Kaufland scope má navíc TypeScript fetch/parser, hash a HTTP-validator deduplikaci, 72hodinový raw snapshot store, deterministickou karanténu, transakční TypeORM persistence, lokální run-once command a explicitní immutable review mapování proti stabilnímu počátečnímu katalogu 13 českých produktových tříd; fyzická letáková aplikovatelnost výslovně netvrdí skladovou dostupnost. Aktuální stav realizace a ověření je autoritativně vedený v odkazovaných Issues.
+Implementované kontrakty v1 pro canonical products, retailer products, offers, evidence, tenant-owned watch rules, onboarding, dashboard, notifikace, connector operations a online stock validation jsou definované Zod schématy v `packages/contracts`; publikační, matching, grouping, sorting, TTL, early-refresh, backoff a candidate-first online pravidla zůstávají v deterministické doméně a TypeORM entity slouží pouze jako persistence mapping. Databázově validované Better Auth sessions chrání onboarding i offers API. Dashboard zobrazuje pouze znovu validované published records, odděluje nekompatibilní jednotky a rozlišuje letákovou aplikovatelnost od ověřeného online stocku. PostgreSQL connector jobs používají `FOR UPDATE SKIP LOCKED`, explicitní coverage manifesty a auditované retry/rate-limit/quarantine/dead-letter stavy. Kaufland scope má TypeScript HTML fetch/parser; navazující Albert scope sdíleně obsluhuje oficiální supermarket/hypermarket index a přímo odkazované PDF pomocí TypeScript `unpdf`, poziční geometrie a samostatné review fronty. Oba konektory používají hash a HTTP-validator deduplikaci, 72hodinový raw snapshot store, deterministickou karanténu, transakční TypeORM persistence, lokální run-once command a immutable review mapování. Fyzická letáková aplikovatelnost výslovně netvrdí skladovou dostupnost. Aktuální stav realizace a ověření je autoritativně vedený v odkazovaných Issues.
 
 ### Fáze 0 — rozhodnutí a contracts
 
 - potvrdit stack a licenci;
 - definovat canonical schemas a evidence levels;
-- první český oficiální source scope byl vybrán v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md); další retailer vyžaduje vlastní source review;
+- první český oficiální source scope byl vybrán v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md) a Albert letákové třídy v [`ADR 0005`](docs/decisions/0005-albert-leaflet-source.md); každý další retailer vyžaduje vlastní source review;
 - threat model a PII klasifikace;
 - fixture policy;
 - CI skeleton vytvořit až s první testovanou vertical slice.
@@ -659,14 +662,14 @@ Sledovat minimálně:
 Před implementací je potřeba rozhodnout:
 
 - právní/licenční režim repozitáře;
-- které další zdroje po prvním Kaufland scope splní source review;
+- které další zdroje po Kaufland a Albert scope splní source review;
 - konkrétní generátor OpenAPI z TypeScript kontraktů;
 - okamžik a konkrétní queue technologie po vyhodnocení PostgreSQL job leasingu;
 - produkční konfigurace vybraného Resend adapteru, domény a webhooku (výběr viz [`ADR 0003`](docs/decisions/0003-transactional-email-provider.md));
 - přesná definice „nejlepší nabídky“ pro pravidlo bez uživatelského prahu;
-- jak modelovat skupinové letáky a store-type scopes;
+- jak před veřejným doručováním přesně přiřadit Albert store-type letáky ke konkrétním pobočkám;
 - kdo a jak schvaluje AI product mappings;
-- obecná retention raw snapshotů pro další konektory; první Kaufland scope má 72hodinovou politiku v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md);
+- obecná retention raw snapshotů pro další konektory; Kaufland i Albert mají 72hodinovou politiku v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md) a [`ADR 0005`](docs/decisions/0005-albert-leaflet-source.md);
 - obchodní model bez ovlivnění nestranného řazení.
 
 ---

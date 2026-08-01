@@ -1,12 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { integrationDatabaseUrl } from "../../../tests/integration-database.js";
+
 import { createAppDataSource } from "./data-source.js";
 import {
   ConnectorJobRecord,
   TypeOrmConnectorJobStore,
 } from "./connector-job-store.js";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = integrationDatabaseUrl();
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
 const scopeKey = "synthetic:prague:shared-offers";
 

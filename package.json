@@ -14,6 +14,8 @@
     "dev:api": "pnpm --filter @shopsmart/api dev",
     "dev:web": "pnpm --filter @shopsmart/web dev",
     "ingest:kaufland": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/kaufland-cli.ts run-once",
+    "ingest:albert": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/albert-cli.ts run-once",
+    "mapping:albert": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/albert-cli.ts mappings",
     "mapping:kaufland": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/kaufland-cli.ts mappings",
     "operator:grant": "node --env-file-if-exists=.env --import tsx apps/api/src/operator-cli.ts grant",
     "test": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run",

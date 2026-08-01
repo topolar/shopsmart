@@ -13,10 +13,12 @@ import {
 import { validateAiAssistCandidate } from "@shopsmart/domain";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { integrationDatabaseUrl } from "../../../tests/integration-database.js";
+
 import { buildApp } from "./app.js";
 import { createShopSmartAuth } from "./auth.js";
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl = integrationDatabaseUrl();
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
 const sourceHash = "c".repeat(64);
 
