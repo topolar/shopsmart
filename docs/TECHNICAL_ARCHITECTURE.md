@@ -138,6 +138,8 @@ Fastify vystaví verzované `/api/v1` a OpenAPI schéma. Sdílená Zod schémata
 
 TypeORM poskytne PostgreSQL DataSource, entity, repositories, QueryBuilder a verzované migrace. Entity jsou pouze persistence modely; nesmí se stát kanonickou doménou ani obsahovat autoritativní výpočty, matching nebo notification state machine. `synchronize` zůstává vypnuté a každou ručně vytvořenou nebo generovanou migraci je nutné reviewovat jako běžný kód. Migrace se aplikují explicitním release krokem, nikoli automaticky při startu každé aplikační repliky. Viz [TypeORM PostgreSQL driver](https://typeorm.io/docs/drivers/postgres/), [migration setup](https://typeorm.io/docs/migrations/setup/) a [executing migrations](https://typeorm.io/docs/migrations/executing/).
 
+Autentizaci zajišťuje Better Auth s databázově validovanými sessions; konkrétní bezpečnostní kontrakt, privacy hranice a produkční gate popisuje [ADR 0002](decisions/0002-authentication-and-sessions.md).
+
 Každá transakční aplikační operace musí používat pouze `transactionalEntityManager` předaný TypeORM callbackem; použití globálního manageru uvnitř transakce je zakázané. Pro PostgreSQL job leasing lze použít QueryBuilder s `pessimistic_write` a `skip_locked`. Viz [TypeORM transactions](https://typeorm.io/docs/transactions/) a [QueryBuilder locking](https://typeorm.io/docs/query-builder/select-query-builder/).
 
 První lokální slice nepřidá Redis ani obecnou task queue. PostgreSQL bude dočasně držet:

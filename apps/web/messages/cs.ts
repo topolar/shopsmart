@@ -1,4 +1,5 @@
 export const cs = {
+  appTitle: "Nastavte si ShopSmart",
   title: "Ověření jednotkové ceny",
   intro:
     "První ShopSmart řez počítá cenu pouze v autoritativní TypeScript doméně a výsledek ukládá přes API.",
@@ -10,4 +11,23 @@ export const cs = {
   pending: "Počítám…",
   result: "Normalizovaná cena",
   error: "Výpočet se nepodařil.",
+  signUp: "Vytvořit účet",
+  signIn: "Přihlásit se",
+  createAccount: "Nový účet",
+  name: "Jméno",
+  email: "E-mail",
+  password: "Heslo (nejméně 12 znaků)",
+  authError: "Přihlášení se nepodařilo.",
+  onboardingTitle: "Lokalita a preference",
+  localityPrivacy:
+    "Stačí město, kraj a volitelně první tři číslice PSČ. Ulici ani přesnou adresu neukládáme.",
+  city: "Město",
+  region: "Kraj",
+  postalCodePrefix: "První tři číslice PSČ",
+  onlineChannel: "Chci sledovat veřejné online kanály",
+  loyaltyProgram: "Věrnostní program (volitelné technické označení)",
+  emailDigest: "Posílat agregovaný e-mailový přehled",
+  finishOnboarding: "Dokončit nastavení",
+  onboardingSaved: "Nastavení je uložené.",
+  onboardingError: "Nastavení se nepodařilo uložit.",
 } as const;
