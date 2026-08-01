@@ -3,6 +3,7 @@ import {
   TypeOrmOnboardingStore,
   TypeOrmOffersDashboardStore,
   TypeOrmNormalizationStore,
+  TypeOrmAiAssistStore,
 } from "@shopsmart/database";
 
 import { buildApp } from "./app.js";
@@ -27,6 +28,7 @@ const app = await buildApp(new TypeOrmNormalizationStore(dataSource), {
   auth: authRuntime.auth,
   onboardingStore: new TypeOrmOnboardingStore(dataSource),
   dashboardStore: new TypeOrmOffersDashboardStore(dataSource),
+  aiAssistStore: new TypeOrmAiAssistStore(dataSource),
 });
 
 const close = async () => {

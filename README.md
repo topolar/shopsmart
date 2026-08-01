@@ -6,12 +6,17 @@ Produktový a datový geografický rozsah je výhradně Česká republika. Česk
 
 ## Stav
 
+Součástí baseline je také ohraničený AI-assist candidate/review tok s
+deterministickou validací, TypeORM auditem a operátorským rozhraním. Živý model
+provider není nakonfigurovaný a AI kandidát nemá cestu k automatické publikaci.
+
 Repozitář obsahuje dokumentační a architektonický základ a testovaný TypeScript baseline: deterministickou normalizaci a tenant-scoped matching, Better Auth sessions, český onboarding, evidence-backed dashboard, candidate-first online stock gate, verzované Zod kontrakty, TypeORM/PostgreSQL persistence, transakční notification outbox, shared connector job leasing/health a Fastify + Next.js/Tailwind vertical slice.
 
 - [`PLAN.md`](PLAN.md) — podrobný plán, praktická zjištění z osobního pilotu, doménový model, architektura, roadmapa a hranice AI.
 - [`docs/TECHNICAL_ARCHITECTURE.md`](docs/TECHNICAL_ARCHITECTURE.md) — zvolený local-first stack, porty, Docker/PostgreSQL, Cloudflare Tunnel a cesta k produkčnímu hostingu.
 - [`docs/CONNECTOR_OPERATIONS.md`](docs/CONNECTOR_OPERATIONS.md) — PostgreSQL leasing, TTL/early refresh, coverage manifesty a provozní stavy connectorů.
 - [`docs/decisions/0004-first-retailer-source.md`](docs/decisions/0004-first-retailer-source.md) — první český source scope: Kaufland Praha-Vypich, povolené cesty, rate limit, retention a fail-closed pravidla.
+- [`docs/AI_ASSIST_OPERATIONS.md`](docs/AI_ASSIST_OPERATIONS.md) — verzované AI candidate kontrakty, deterministické brány, nákladové limity, cache a operátorské review.
 - [`AGENTS.md`](AGENTS.md) — závazné instrukce pro coding agenty a budoucí příspěvky.
 
 ## Hlavní princip

@@ -11,6 +11,15 @@ import { CreateConnectorOperations20260801140000 } from "./migrations/2026080114
 import { CreateSourceIngestion20260801150000 } from "./migrations/20260801150000-create-source-ingestion.js";
 import { CreateRetailerMappingReview20260801160000 } from "./migrations/20260801160000-create-retailer-mapping-review.js";
 import { SeedInitialCzechCatalog20260801161000 } from "./migrations/20260801161000-seed-initial-czech-catalog.js";
+import { CreateAiAssist20260801170000 } from "./migrations/20260801170000-create-ai-assist.js";
+import { AddOperatorRole20260801171000 } from "./migrations/20260801171000-add-operator-role.js";
+import { StrengthenAiAssistCacheKey20260801172000 } from "./migrations/20260801172000-strengthen-ai-assist-cache-key.js";
+import {
+  aiAssistCacheRecordSchema,
+  aiAssistFailureRecordSchema,
+  aiAssistProposalRecordSchema,
+  aiAssistReviewRecordSchema,
+} from "./ai-assist-store.js";
 import {
   connectorJobRecordSchema,
   connectorRefreshEventRecordSchema,
@@ -81,6 +90,10 @@ export function createAppDataSource(
       sourceSnapshotRecordSchema,
       quarantinedSourceCandidateRecordSchema,
       retailerProductMappingCandidateRecordSchema,
+      aiAssistProposalRecordSchema,
+      aiAssistReviewRecordSchema,
+      aiAssistCacheRecordSchema,
+      aiAssistFailureRecordSchema,
     ],
     migrations: [
       CreateNormalizationRecords20260801090000,
@@ -92,6 +105,9 @@ export function createAppDataSource(
       CreateSourceIngestion20260801150000,
       CreateRetailerMappingReview20260801160000,
       SeedInitialCzechCatalog20260801161000,
+      CreateAiAssist20260801170000,
+      AddOperatorRole20260801171000,
+      StrengthenAiAssistCacheKey20260801172000,
     ],
     migrationsTableName: "shopsmart_migrations",
   });
