@@ -28,6 +28,14 @@ type PreviousRetrieval = Readonly<{
   lastModified: string | null;
 }>;
 
+type StoredAlbertRetrieval = PreviousRetrieval &
+  Readonly<{
+    rawStorageKey: string | null;
+    sourceUrl: string;
+    retrievedAt: string;
+    httpStatus: number;
+  }>;
+
 type OperationInput = Readonly<{
   now: string;
   workerId: string;
@@ -100,6 +108,81 @@ type OperationInput = Readonly<{
 }>;
 
 const scopes = [ALBERT_SUPERMARKET_SCOPE, ALBERT_HYPERMARKET_SCOPE] as const;
+
+export async function reprocessStoredAlbertSnapshot(input: {
+  kind: AlbertLeafletKind;
+  ingestion: {
+    latestRetrieval(
+      sourceScopeKey: string,
+    ): Promise<StoredAlbertRetrieval | null>;
+    loadApprovedAlbertMappings(
+      kind: AlbertLeafletKind,
+    ): Promise<readonly AlbertProductMapping[]>;
+    persistAlbert(
+      result: AlbertSnapshotResult,
+      options: {
+        manifest: AlbertLeafletManifest;
+        rawStorageKey: string | null;
+      },
+    ): Promise<unknown>;
+  };
+  rawSnapshots: {
+    readBinary(storageKey: string, extension: "pdf"): Promise<Uint8Array>;
+  };
+  fetchResource?: typeof fetchAlbertResource;
+  processSnapshot?: typeof processAlbertLeafletSnapshot;
+}) {
+  const scope =
+    input.kind === "supermarket"
+      ? ALBERT_SUPERMARKET_SCOPE
+      : ALBERT_HYPERMARKET_SCOPE;
+  const previous = await input.ingestion.latestRetrieval(scope.key);
+  if (!previous?.rawStorageKey) {
+    throw new Error("ALBERT_RAW_SNAPSHOT_UNAVAILABLE");
+  }
+  const index = await (input.fetchResource ?? fetchAlbertResource)({
+    url: ALBERT_LEAFLET_INDEX_URL,
+    expected: "html",
+  });
+  if (!index.body || index.notModified) {
+    throw new Error("ALBERT_INDEX_BODY_MISSING");
+  }
+  const manifest = discoverAlbertLeaflets(
+    new TextDecoder().decode(index.body),
+  ).find(({ kind }) => kind === input.kind);
+  if (!manifest || manifest.pdfUrl !== previous.sourceUrl) {
+    throw new Error("ALBERT_RETAINED_SNAPSHOT_IS_NOT_CURRENT");
+  }
+  const pdfBytes = await input.rawSnapshots.readBinary(
+    previous.rawStorageKey,
+    "pdf",
+  );
+  const result = await (input.processSnapshot ?? processAlbertLeafletSnapshot)({
+    manifest,
+    pdfBytes,
+    httpStatus: previous.httpStatus,
+    retrievedAt: previous.retrievedAt,
+    etag: previous.etag,
+    lastModified: previous.lastModified,
+    previousContentHash: null,
+    previousParserVersion: null,
+    productMappings: await input.ingestion.loadApprovedAlbertMappings(
+      input.kind,
+    ),
+  });
+  if (result.retrieval.contentHash !== previous.contentHash) {
+    throw new Error("ALBERT_RETAINED_SNAPSHOT_HASH_MISMATCH");
+  }
+  await input.ingestion.persistAlbert(result, {
+    manifest,
+    rawStorageKey: previous.rawStorageKey,
+  });
+  return {
+    status: "reprocessed" as const,
+    offerCount: result.offers.length,
+    quarantineCount: result.quarantines.length,
+  };
+}
 
 export async function runAlbertOperationOnce(input: OperationInput) {
   const deleted = await input.rawSnapshots.purgeExpired(input.now);

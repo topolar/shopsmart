@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -73,8 +74,8 @@ describe("FileSystemRawSnapshotStore", () => {
     const directory = await mkdtemp(join(tmpdir(), "shopsmart-snapshot-test-"));
     temporaryDirectories.push(directory);
     const store = new FileSystemRawSnapshotStore(directory);
-    const contentHash = "c".repeat(64);
     const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x00, 0xff]);
+    const contentHash = createHash("sha256").update(bytes).digest("hex");
 
     const stored = await store.writeBinary({
       bytes,
@@ -85,6 +86,12 @@ describe("FileSystemRawSnapshotStore", () => {
     });
 
     expect(stored.storageKey).toBe(`1785844800000-${contentHash}.pdf`);
+    await expect(store.readBinary(stored.storageKey, "pdf")).resolves.toEqual(
+      bytes,
+    );
+    await expect(
+      store.readBinary(`1785844800000-${contentHash}.html`, "pdf"),
+    ).rejects.toThrow("storageKey");
     await expect(readFile(stored.absolutePath)).resolves.toEqual(
       Buffer.from(bytes),
     );

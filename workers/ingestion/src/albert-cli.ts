@@ -1,19 +1,30 @@
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { FileSystemRawSnapshotStore } from "@shopsmart/connectors";
+import {
+  ALBERT_HYPERMARKET_SCOPE,
+  ALBERT_SUPERMARKET_SCOPE,
+  FileSystemRawSnapshotStore,
+} from "@shopsmart/connectors";
 import {
   createAppDataSource,
   TypeOrmConnectorJobStore,
   TypeOrmSourceIngestionStore,
 } from "@shopsmart/database";
 
-import { runAlbertOperationOnce } from "./albert-operation.js";
+import {
+  reprocessStoredAlbertSnapshot,
+  runAlbertOperationOnce,
+} from "./albert-operation.js";
 
 type AlbertCliCommand =
   | Readonly<{ kind: "run-once" }>
   | Readonly<{
       kind: "list-mappings";
+      scope: "supermarket" | "hypermarket";
+    }>
+  | Readonly<{
+      kind: "reprocess-mappings";
       scope: "supermarket" | "hypermarket";
     }>
   | Readonly<{ kind: "list-canonical-classes" }>
@@ -26,7 +37,7 @@ type AlbertCliCommand =
     }>;
 
 const usage =
-  "Usage: run-once | mappings list --scope <supermarket|hypermarket> | mappings classes | mappings approve --candidate <uuid> --canonical <uuid> --reviewer <id> [--attributes <json>]";
+  "Usage: run-once | mappings list --scope <supermarket|hypermarket> | mappings reprocess --scope <supermarket|hypermarket> | mappings classes | mappings approve --candidate <uuid> --canonical <uuid> --reviewer <id> [--attributes <json>]";
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -38,13 +49,16 @@ export function parseAlbertCliArgs(args: readonly string[]): AlbertCliCommand {
   if (args.length === 2 && args[1] === "classes") {
     return { kind: "list-canonical-classes" };
   }
-  if (args[1] === "list") {
+  if (args[1] === "list" || args[1] === "reprocess") {
     const values = parseFlags(args.slice(2), ["scope"]);
     const scope = values.get("scope");
     if (scope !== "supermarket" && scope !== "hypermarket") {
       throw new Error(usage);
     }
-    return { kind: "list-mappings", scope };
+    return {
+      kind: args[1] === "list" ? "list-mappings" : "reprocess-mappings",
+      scope,
+    };
   }
   if (args[1] !== "approve") throw new Error(usage);
   const values = parseFlags(args.slice(2), [
@@ -80,6 +94,11 @@ async function main(): Promise<void> {
   try {
     await dataSource.runMigrations();
     const ingestion = new TypeOrmSourceIngestionStore(dataSource);
+    const rawDirectory = resolve(
+      process.env.SHOPSMART_ALBERT_RAW_SNAPSHOT_DIR ??
+        "data/raw-snapshots/albert",
+    );
+    const rawSnapshots = new FileSystemRawSnapshotStore(rawDirectory);
     if (command.kind === "list-mappings") {
       const candidates = await ingestion.listPendingAlbertMappings(
         command.scope,
@@ -102,27 +121,50 @@ async function main(): Promise<void> {
       writeJson({ count: classes.length, classes });
       return;
     }
+    if (command.kind === "reprocess-mappings") {
+      writeJson(
+        await reprocessStoredAlbertSnapshot({
+          kind: command.scope,
+          ingestion,
+          rawSnapshots,
+        }),
+      );
+      return;
+    }
     if (command.kind === "approve-mapping") {
       const reviewedAt = new Date().toISOString();
-      await ingestion.approveKauflandMapping({ ...command, reviewedAt });
+      const approved = await ingestion.approveKauflandMapping({
+        ...command,
+        reviewedAt,
+        allowedSourceScopeKeys: [
+          ALBERT_SUPERMARKET_SCOPE.key,
+          ALBERT_HYPERMARKET_SCOPE.key,
+        ],
+      });
+      const kind =
+        approved.sourceScopeKey === ALBERT_SUPERMARKET_SCOPE.key
+          ? "supermarket"
+          : "hypermarket";
+      const reprocessed = await reprocessStoredAlbertSnapshot({
+        kind,
+        ingestion,
+        rawSnapshots,
+      });
       writeJson({
         status: "approved",
         candidateId: command.candidateId,
         canonicalProductClassId: command.canonicalProductClassId,
         reviewedAt,
+        reprocessed,
       });
       return;
     }
-    const rawDirectory = resolve(
-      process.env.SHOPSMART_ALBERT_RAW_SNAPSHOT_DIR ??
-        "data/raw-snapshots/albert",
-    );
     const result = await runAlbertOperationOnce({
       now: new Date().toISOString(),
       workerId: `local-albert-${process.pid}`,
       jobs: new TypeOrmConnectorJobStore(dataSource),
       ingestion,
-      rawSnapshots: new FileSystemRawSnapshotStore(rawDirectory),
+      rawSnapshots,
     });
     writeJson(result);
   } finally {

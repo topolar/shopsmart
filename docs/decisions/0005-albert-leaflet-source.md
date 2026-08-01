@@ -70,6 +70,12 @@ the derived retailer product key to a canonical product class. The external key
 is a stable hash of leaflet class, normalized exact name and declared package;
 price, validity and URL are intentionally excluded.
 
+Mapping approval immediately reparses the retained current PDF without a new
+PDF download. The worker first verifies the storage key and SHA-256 content,
+then confirms that the official index still points to the same PDF. A retryable
+operator command can repeat this reparse after a transient index or database
+failure.
+
 ## Evidence and locality boundary
 
 Durable offers retain the direct official PDF URL, official viewer URL,

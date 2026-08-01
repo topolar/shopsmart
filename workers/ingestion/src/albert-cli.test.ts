@@ -11,6 +11,9 @@ describe("Albert operator CLI", () => {
     expect(parseAlbertCliArgs(["mappings", "classes"])).toEqual({
       kind: "list-canonical-classes",
     });
+    expect(
+      parseAlbertCliArgs(["mappings", "reprocess", "--scope", "hypermarket"]),
+    ).toEqual({ kind: "reprocess-mappings", scope: "hypermarket" });
   });
 
   it("requires an explicit leaflet class and immutable approval metadata", () => {

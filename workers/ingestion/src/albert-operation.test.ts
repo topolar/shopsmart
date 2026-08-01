@@ -6,7 +6,10 @@ import {
   type AlbertSnapshotResult,
 } from "@shopsmart/connectors";
 
-import { runAlbertOperationOnce } from "./albert-operation.js";
+import {
+  reprocessStoredAlbertSnapshot,
+  runAlbertOperationOnce,
+} from "./albert-operation.js";
 
 describe("local Albert operation", () => {
   it("fetches the index once and fans it out to both due leaflet scopes", async () => {
@@ -119,6 +122,69 @@ describe("local Albert operation", () => {
 
     expect(outcome).toEqual({ status: "not-due", deletedRawCount: 0 });
     expect(fetchResource).not.toHaveBeenCalled();
+  });
+
+  it("reprocesses retained PDF evidence immediately after mapping approval", async () => {
+    const persisted = vi.fn(async () => ({ snapshotId: "reprocessed" }));
+    const processSnapshot = vi.fn(async () => result("supermarket"));
+    const pdfBytes = new TextEncoder().encode("retained PDF");
+
+    const outcome = await reprocessStoredAlbertSnapshot({
+      kind: "supermarket",
+      ingestion: {
+        latestRetrieval: vi.fn(async () => ({
+          contentHash: "a".repeat(64),
+          parserVersion: "albert-leaflet-v1",
+          etag: '"pdf"',
+          lastModified: null,
+          rawStorageKey: `1785844800000-${"a".repeat(64)}.pdf`,
+          sourceUrl:
+            "https://view.publitas.com/90263/3259903/pdfs/supermarket.pdf",
+          retrievedAt: "2026-08-01T12:00:00.000Z",
+          httpStatus: 200,
+        })),
+        loadApprovedAlbertMappings: vi.fn(async () => [
+          {
+            externalId: "approved-product",
+            canonicalProductClassId: "018f5f70-7b5d-7a21-9f49-01b7f63a9401",
+            comparisonUnit: "kilogram" as const,
+            variantAttributes: { state: "fresh" },
+          },
+        ]),
+        persistAlbert: persisted,
+      },
+      rawSnapshots: {
+        readBinary: vi.fn(async () => pdfBytes),
+      },
+      fetchResource: vi.fn(async () => ({
+        body: new TextEncoder().encode(syntheticIndex),
+        httpStatus: 200,
+        etag: '"index"',
+        lastModified: null,
+        notModified: false,
+      })),
+      processSnapshot,
+    });
+
+    expect(outcome).toEqual({
+      status: "reprocessed",
+      offerCount: 0,
+      quarantineCount: 0,
+    });
+    expect(processSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pdfBytes,
+        retrievedAt: "2026-08-01T12:00:00.000Z",
+        previousContentHash: null,
+        previousParserVersion: null,
+      }),
+    );
+    expect(persisted).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        rawStorageKey: `1785844800000-${"a".repeat(64)}.pdf`,
+      }),
+    );
   });
 });
 
