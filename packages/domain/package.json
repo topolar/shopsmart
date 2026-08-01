@@ -7,8 +7,11 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "test": "vitest run src/unit-price.test.ts",
+    "test": "vitest run src/*.test.ts",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@shopsmart/contracts": "workspace:*"
   },
   "devDependencies": {
     "typescript": "6.0.3"
