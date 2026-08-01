@@ -18,6 +18,7 @@
     "mapping:albert": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/albert-cli.ts mappings",
     "mapping:kaufland": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/kaufland-cli.ts mappings",
     "match:run-once": "node --env-file-if-exists=.env --import tsx workers/matching/src/matching-cli.ts run-once",
+    "digest:plan-once": "node --env-file-if-exists=.env --import tsx workers/notifications/src/digest-cli.ts run-once",
     "operator:grant": "node --env-file-if-exists=.env --import tsx apps/api/src/operator-cli.ts grant",
     "test": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run",
     "test:domain": "node --env-file-if-exists=.env node_modules/vitest/vitest.mjs run packages/domain/src/unit-price.test.ts packages/domain/src/offer-publication.test.ts packages/domain/src/matching.test.ts packages/domain/src/notification.test.ts packages/domain/src/connector-operations.test.ts",
