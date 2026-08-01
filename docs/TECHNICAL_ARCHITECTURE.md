@@ -153,6 +153,8 @@ Workery budou bezpečně claimovat práci transakčně přes TypeORM QueryBuilde
 
 Connector scheduler používá jednu unikátní job řádku pro každý shared source scope a claimuje due práci přes PostgreSQL `FOR UPDATE SKIP LOCKED`. Stavový automat eviduje lease, rate-limit okno, deterministický backoff, dead letter, parser drift/quarantine, poslední úspěch, content hash a kompletnost coverage manifestu. Statický kontext má TTL; dynamická fakta se vždy revalidují a broken URL, rozpor, official change, neznámý retailer nebo explicitní požadavek vytvářejí auditovaný early-refresh trigger.
 
+Obecná online obslužnost používá stejnou `static_context_cache`, ale pod namespacovaným klíčem `service-area:<uuid>` a s validovaným hrubým kontextem město/kraj/PSČ prefix. Neobsahuje produktový stock ani přesnou adresu. Produktová dostupnost se ověřuje až pro kandidáta, který prošel stejnými identity, atributovými, locality, membership a cenovými predikáty jako publikovaný match. Výsledek je publikovatelný jen při aktuálním `in-stock` důkazu pro shodné service area a delivery/pickup způsob; nese čas kontroly, fulfilment detail, volitelný poplatek, minimum košíku, okno a samostatnou HTTP(S) evidenční URL. Výchozí maximální stáří stock kontroly je 15 minut. Konkrétní live adaptér a jeho frekvence patří ke schválenému zdroji v Issues #5/#8.
+
 Transakční notification outbox odděluje provider acceptance od potvrzeného doručení. Novelty event se označí jako notified pouze transakcí vyvolanou ověřeným delivery webhookem; přijatý send request čeká ve stavu `awaiting-confirmation`. Prvním plánovaným produkčním adapterem je Resend, podrobnosti a srovnání jsou v [ADR 0003](decisions/0003-transactional-email-provider.md).
 
 Raw snapshoty mohou být lokálně v ignorovaném datovém adresáři s metadaty v databázi. Před produkcí se přesunou do S3-compatible object storage s retention policy.
@@ -170,6 +172,8 @@ Doporučené hranice:
 - API odpovědi vždy nesou source URL, evidence level a verification timestamp tam, kde je UI zobrazuje.
 
 Evidence dashboard používá stejný-origin BFF route a private API odvozuje tenant výhradně z databázově validované session. TypeORM read model načítá jen `published` offer records, každý match/offer pár znovu prožene fail-closed kontraktem a teprve potom ho seskupí a seřadí deterministickou doménovou funkcí. Candidate-only nebo nekonzistentní data se do odpovědi ani UI nedostanou.
+
+Dashboard explicitně odlišuje fyzickou letákovou aplikovatelnost bez tvrzení o skladové zásobě od online dostupnosti konkrétního produktu. U online nabídky zobrazuje čas stock ověření a dostupné košíkové podmínky; obecný service-area cache záznam se uživateli nikdy nevydává za produktovou dostupnost.
 
 Pro produkční self-hosting Next.js doporučuje reverzní proxy před serverem. Ta bude součástí hostingové fáze nebo ji poskytne cílová platforma; viz [Next.js self-hosting](https://nextjs.org/docs/app/guides/self-hosting).
 

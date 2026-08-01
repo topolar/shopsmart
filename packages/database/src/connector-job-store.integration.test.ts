@@ -254,4 +254,46 @@ describeWithDatabase("shared connector job operations", () => {
       }),
     ).rejects.toMatchObject({ code: "INCOMPLETE_COVERAGE" });
   });
+
+  it("caches coarse service-area support separately from product stock", async () => {
+    if (!store) throw new Error("Store was not initialized.");
+    const serviceAreaId = "018f5f70-7b5d-7a21-9f49-01b7f63a9307";
+    await store.saveServiceAreaContext(scopeKey, {
+      serviceAreaId,
+      locality: {
+        city: "Synthetic City",
+        region: "CZ-10",
+        postalCodePrefix: "110",
+      },
+      supported: true,
+      sourceUrl: "https://retailer.example.invalid/service-area",
+      verifiedAt: "2026-07-25T12:00:00.000Z",
+      expiresAt: "2026-08-08T12:00:00.000Z",
+    });
+
+    await expect(
+      store.readServiceAreaContext(
+        scopeKey,
+        serviceAreaId,
+        {
+          city: "Synthetic City",
+          region: "CZ-10",
+          postalCodePrefix: "110",
+        },
+        "2026-08-01T12:00:00.000Z",
+      ),
+    ).resolves.toMatchObject({ serviceAreaId, supported: true });
+    await expect(
+      store.readServiceAreaContext(
+        scopeKey,
+        serviceAreaId,
+        {
+          city: "Other Synthetic City",
+          region: "CZ-10",
+          postalCodePrefix: "110",
+        },
+        "2026-08-01T12:00:00.000Z",
+      ),
+    ).resolves.toBeNull();
+  });
 });

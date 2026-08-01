@@ -1,12 +1,15 @@
 import {
   coverageManifestSchema,
   earlyRefreshTriggerSchema,
+  serviceAreaContextSchema,
   type CoverageItemInput,
   type EarlyRefreshTrigger,
+  type ServiceAreaContext,
 } from "@shopsmart/contracts";
 import {
   calculateConnectorRetryAt,
   decideStaticContextRefresh,
+  isServiceAreaContextUsable,
   summarizeCoverageManifest,
 } from "@shopsmart/domain";
 import { EntitySchema, type DataSource } from "typeorm";
@@ -532,6 +535,44 @@ export class TypeOrmConnectorJobStore {
     return decision.refresh ? null : record;
   }
 
+  async saveServiceAreaContext(
+    sourceScopeKey: string,
+    contextInput: unknown,
+  ): Promise<void> {
+    const context = serviceAreaContextSchema.parse(contextInput);
+    await this.saveStaticContext({
+      sourceScopeKey,
+      contextKey: serviceAreaContextKey(context.serviceAreaId),
+      payload: { ...context },
+      sourceUrl: context.sourceUrl,
+      verifiedAt: context.verifiedAt,
+      expiresAt: context.expiresAt,
+    });
+  }
+
+  async readServiceAreaContext(
+    sourceScopeKey: string,
+    serviceAreaId: string,
+    tenantLocalityInput: unknown,
+    now: string,
+  ): Promise<ServiceAreaContext | null> {
+    const record = await this.readStaticContext(
+      sourceScopeKey,
+      serviceAreaContextKey(serviceAreaId),
+      now,
+    );
+    if (!record) return null;
+    const context = serviceAreaContextSchema.safeParse(record.payload);
+    if (
+      !context.success ||
+      context.data.serviceAreaId !== serviceAreaId ||
+      !isServiceAreaContextUsable(context.data, tenantLocalityInput, now)
+    ) {
+      return null;
+    }
+    return context.data;
+  }
+
   async health(sourceScopeKey: string) {
     const job = await this.dataSource
       .getRepository(ConnectorJobRecord)
@@ -573,6 +614,10 @@ export class TypeOrmConnectorJobStore {
         }
       : null;
   }
+}
+
+function serviceAreaContextKey(serviceAreaId: string): string {
+  return `service-area:${serviceAreaId}`;
 }
 
 function normalizeQueryRows(result: unknown): Record<string, unknown>[] {

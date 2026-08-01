@@ -21,6 +21,22 @@ describe("OffersDashboardView", () => {
       'href="https://retailer.example.invalid/offers/curd"',
     );
     expect(html).toContain('aria-labelledby="offers-heading"');
+    expect(html).toContain(
+      "Platnost letáku; sklad konkrétního produktu není potvrzen",
+    );
+  });
+
+  it("distinguishes stock-verified online obtainability and its basket conditions", () => {
+    const html = renderToStaticMarkup(
+      createElement(OffersDashboardView, { dashboard: onlineDashboard }),
+    );
+
+    expect(html).toContain("Sklad konkrétního produktu ověřen");
+    expect(html).toContain("Poplatek za doručení");
+    expect(html).toContain("49,00");
+    expect(html).toContain("Minimální objednávka");
+    expect(html).toContain("500,00");
+    expect(html).toContain("Okno doručení nebo vyzvednutí");
   });
 });
 
@@ -83,6 +99,39 @@ const dashboard: OffersDashboardResponse = {
           sourceUrl: "https://retailer.example.invalid/offers/curd",
           retrievedAt: "2026-08-01T06:00:00.000Z",
           evidenceLevel: "official",
+        },
+      ],
+    },
+  ],
+};
+
+const physicalOffer = dashboard.groups[0]!.offers[0]!;
+const onlineDashboard: OffersDashboardResponse = {
+  ...dashboard,
+  groups: [
+    {
+      ...dashboard.groups[0]!,
+      offers: [
+        {
+          ...physicalOffer,
+          locality: {
+            kind: "online",
+            serviceAreaId: "018f5f70-7b5d-7a21-9f49-01b7f63a9807",
+            fulfilment: "delivery",
+          },
+          localityName: "Synthetic City",
+          availability: {
+            kind: "online",
+            stockStatus: "in-stock",
+            checkedAt: "2026-08-01T11:58:00.000Z",
+            fulfilmentDetails: "Doručení do nastaveného města",
+            deliveryFee: { amount: "49.00", currency: "CZK" },
+            minimumBasket: { amount: "500.00", currency: "CZK" },
+            fulfilmentWindow:
+              "2026-08-01T16:00:00.000Z/2026-08-01T18:00:00.000Z",
+            stockEvidenceUrl:
+              "https://retailer.example.invalid/availability/curd",
+          },
         },
       ],
     },
