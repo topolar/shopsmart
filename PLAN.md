@@ -588,6 +588,12 @@ Implementované kontrakty v1 pro canonical products, retailer products, offers, 
 - review UI, confidence a evidence spans;
 - nákladové limity a cache schválených výstupů.
 
+Implementovaný základ této fáze obsahuje verzované TypeScript/Zod kontrakty pro
+product mapping a flyer extraction, provider-neutral runner s tvrdými limity,
+syntetickou eval sadu, deterministickou karanténu, TypeORM auditní persistence a
+operátorské review API/UI. Živý provider ani automatická publikace nejsou
+součástí základu; jejich zapnutí vyžaduje samostatně schválenou provider issue.
+
 ### Fáze 5 — škálování a veřejná beta
 
 - více regionů a lokalizací;

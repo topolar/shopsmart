@@ -1,3 +1,4 @@
+export * from "./ai-assist";
 export * from "./dashboard";
 export * from "./connector-operations";
 export * from "./offer";

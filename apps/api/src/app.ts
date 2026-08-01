@@ -12,12 +12,18 @@ import {
   normalizationErrorSchema,
   normalizeUnitPriceRequestSchema,
   normalizeUnitPriceResponseSchema,
+  aiAssistReviewQueueResponseSchema,
+  aiAssistReviewRequestSchema,
+  aiAssistReviewResponseSchema,
+  aiAssistReviewErrorSchema,
+  operatorAuthorizationErrorSchema,
   tenantAuthorizationErrorSchema,
 } from "@shopsmart/contracts";
 import type {
   NormalizationStore,
   OffersDashboardStore,
   TypeOrmOnboardingStore,
+  TypeOrmAiAssistStore,
 } from "@shopsmart/database";
 import {
   IncompatibleUnitError,
@@ -34,6 +40,7 @@ type AppDependencies = Readonly<{
   auth: ShopSmartAuth;
   onboardingStore: TypeOrmOnboardingStore;
   dashboardStore?: OffersDashboardStore;
+  aiAssistStore?: TypeOrmAiAssistStore;
 }>;
 
 export async function buildApp(
@@ -163,6 +170,99 @@ export async function buildApp(
         },
       );
     }
+
+    const aiAssistStore = dependencies.aiAssistStore;
+    if (aiAssistStore) {
+      typedApp.get(
+        "/api/v1/operator/ai-assist/proposals",
+        {
+          schema: {
+            response: {
+              200: aiAssistReviewQueueResponseSchema,
+              401: operatorAuthorizationErrorSchema,
+              403: operatorAuthorizationErrorSchema,
+            },
+          },
+        },
+        async (request, reply) => {
+          const session = await dependencies.auth.api.getSession({
+            headers: fromNodeHeaders(request.headers),
+          });
+          if (!session) {
+            return reply.code(401).send({
+              code: "UNAUTHENTICATED",
+              message: "A valid session is required.",
+            });
+          }
+          if (session.user.role !== "operator") {
+            return reply.code(403).send({
+              code: "OPERATOR_REQUIRED",
+              message: "An operator session is required.",
+            });
+          }
+          return reply.code(200).send({
+            items: await aiAssistStore.listReviewQueue(),
+          });
+        },
+      );
+
+      typedApp.post(
+        "/api/v1/operator/ai-assist/proposals/:proposalId/review",
+        {
+          schema: {
+            params: z.object({ proposalId: z.uuid() }),
+            body: aiAssistReviewRequestSchema,
+            response: {
+              200: aiAssistReviewResponseSchema,
+              401: operatorAuthorizationErrorSchema,
+              403: operatorAuthorizationErrorSchema,
+              409: aiAssistReviewErrorSchema,
+            },
+          },
+        },
+        async (request, reply) => {
+          const session = await dependencies.auth.api.getSession({
+            headers: fromNodeHeaders(request.headers),
+          });
+          if (!session) {
+            return reply.code(401).send({
+              code: "UNAUTHENTICATED",
+              message: "A valid session is required.",
+            });
+          }
+          if (session.user.role !== "operator") {
+            return reply.code(403).send({
+              code: "OPERATOR_REQUIRED",
+              message: "An operator session is required.",
+            });
+          }
+          const reviewedAt = new Date().toISOString();
+          try {
+            await aiAssistStore.review({
+              proposalId: request.params.proposalId,
+              decision: request.body.decision,
+              reason: request.body.reason,
+              reviewerUserId: session.user.id,
+              reviewedAt,
+            });
+          } catch (error) {
+            const code = aiReviewConflictCode(error);
+            if (code) {
+              return reply.code(409).send({
+                code,
+                message: "The proposal can no longer accept this decision.",
+              });
+            }
+            throw error;
+          }
+          return reply.code(200).send({
+            proposalId: request.params.proposalId,
+            reviewStatus: request.body.decision,
+            reviewedAt,
+          });
+        },
+      );
+    }
   }
 
   typedApp.post(
@@ -200,4 +300,18 @@ export async function buildApp(
   typedApp.get("/api/v1/openapi.json", async () => app.swagger());
 
   return app;
+}
+
+const aiReviewConflictCodes = [
+  "AI_PROPOSAL_ALREADY_REVIEWED",
+  "QUARANTINED_PROPOSAL_CANNOT_BE_APPROVED",
+  "AI_TASK_ALREADY_APPROVED",
+  "MAPPING_ALREADY_REVIEWED",
+  "STALE_MAPPING_PROPOSAL",
+  "MAPPING_ATTRIBUTE_MISMATCH",
+] as const;
+
+function aiReviewConflictCode(error: unknown) {
+  if (!(error instanceof Error)) return null;
+  return aiReviewConflictCodes.find((code) => code === error.message) ?? null;
 }

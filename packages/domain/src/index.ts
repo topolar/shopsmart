@@ -1,3 +1,4 @@
+export * from "./ai-assist.js";
 export * from "./offer-publication.js";
 export * from "./connector-operations.js";
 export * from "./matching.js";

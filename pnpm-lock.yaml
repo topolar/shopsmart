@@ -113,6 +113,19 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
 
+  packages/ai_assist:
+    dependencies:
+      '@shopsmart/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@shopsmart/domain':
+        specifier: workspace:*
+        version: link:../domain
+    devDependencies:
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+
   packages/connectors:
     dependencies:
       '@shopsmart/contracts':
@@ -159,6 +172,9 @@ importers:
       typeorm:
         specifier: 1.1.0
         version: 1.1.0(pg@8.22.0)
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/pg':
         specifier: 8.15.5

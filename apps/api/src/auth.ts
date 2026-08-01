@@ -33,6 +33,12 @@ export function createShopSmartAuth(options: AuthOptions) {
           required: false,
           input: false,
         },
+        role: {
+          type: "string",
+          required: false,
+          input: false,
+          defaultValue: "user",
+        },
       },
     },
     advanced: {
@@ -53,7 +59,13 @@ export function createShopSmartAuth(options: AuthOptions) {
               id: tenantId,
               name: "Personal tenant",
             });
-            return { data: { ...user, tenantId } };
+            return {
+              data: {
+                ...user,
+                tenantId,
+                role: "user",
+              },
+            };
           },
         },
       },
