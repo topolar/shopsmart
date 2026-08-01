@@ -4,10 +4,11 @@ ShopSmart je plánovaná veřejná služba pro personalizované hlídání náku
 
 ## Stav
 
-Repozitář obsahuje dokumentační a architektonický základ a testovaný TypeScript baseline: deterministickou normalizaci a tenant-scoped matching, Better Auth sessions, český onboarding, evidence-backed dashboard, verzované Zod kontrakty, TypeORM/PostgreSQL persistence, transakční notification outbox a Fastify + Next.js/Tailwind vertical slice.
+Repozitář obsahuje dokumentační a architektonický základ a testovaný TypeScript baseline: deterministickou normalizaci a tenant-scoped matching, Better Auth sessions, český onboarding, evidence-backed dashboard, verzované Zod kontrakty, TypeORM/PostgreSQL persistence, transakční notification outbox, shared connector job leasing/health a Fastify + Next.js/Tailwind vertical slice.
 
 - [`PLAN.md`](PLAN.md) — podrobný plán, praktická zjištění z osobního pilotu, doménový model, architektura, roadmapa a hranice AI.
 - [`docs/TECHNICAL_ARCHITECTURE.md`](docs/TECHNICAL_ARCHITECTURE.md) — zvolený local-first stack, porty, Docker/PostgreSQL, Cloudflare Tunnel a cesta k produkčnímu hostingu.
+- [`docs/CONNECTOR_OPERATIONS.md`](docs/CONNECTOR_OPERATIONS.md) — PostgreSQL leasing, TTL/early refresh, coverage manifesty a provozní stavy connectorů.
 - [`AGENTS.md`](AGENTS.md) — závazné instrukce pro coding agenty a budoucí příspěvky.
 
 ## Hlavní princip
