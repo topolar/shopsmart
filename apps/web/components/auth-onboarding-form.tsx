@@ -1,9 +1,15 @@
 "use client";
 
 import { onboardingResponseSchema } from "@shopsmart/contracts";
-import { useState, type FormEvent, type InputHTMLAttributes } from "react";
+import {
+  useEffect,
+  useState,
+  type FormEvent,
+  type InputHTMLAttributes,
+} from "react";
 
 import { cs } from "../messages/cs";
+import { OffersDashboard } from "./offers-dashboard";
 
 type AuthMode = "sign-up" | "sign-in";
 
@@ -12,6 +18,25 @@ export function AuthOnboardingForm() {
   const [tenantId, setTenantId] = useState<string>();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string>();
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/auth/get-session", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return undefined;
+        return (await response.json()) as {
+          user?: { tenantId?: string };
+        };
+      })
+      .then((session) => {
+        if (session?.user?.tenantId) setTenantId(session.user.tenantId);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   async function authenticate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -78,48 +103,51 @@ export function AuthOnboardingForm() {
 
   if (tenantId) {
     return (
-      <form className="grid gap-4" key="onboarding" onSubmit={saveOnboarding}>
-        <h2 className="text-2xl font-bold">{cs.onboardingTitle}</h2>
-        <p className="text-sm text-emerald-950/70">{cs.localityPrivacy}</p>
-        <Field label={cs.city} name="city" defaultValue="Praha" />
-        <Field
-          label={cs.region}
-          name="region"
-          defaultValue="Hlavní město Praha"
-        />
-        <Field
-          label={cs.postalCodePrefix}
-          name="postalCodePrefix"
-          defaultValue="110"
-          pattern="[0-9]{3}"
-        />
-        <label className="flex items-start gap-3">
-          <input
-            className="mt-1"
-            name="onlineEnabled"
-            type="checkbox"
-            defaultChecked
+      <div className="grid gap-8">
+        <form className="grid gap-4" key="onboarding" onSubmit={saveOnboarding}>
+          <h2 className="text-2xl font-bold">{cs.onboardingTitle}</h2>
+          <p className="text-sm text-emerald-950/70">{cs.localityPrivacy}</p>
+          <Field label={cs.city} name="city" defaultValue="Praha" />
+          <Field
+            label={cs.region}
+            name="region"
+            defaultValue="Hlavní město Praha"
           />
-          <span>{cs.onlineChannel}</span>
-        </label>
-        <Field
-          label={cs.loyaltyProgram}
-          name="loyaltyProgram"
-          placeholder="např. clubcard"
-          pattern="[a-z0-9]+(?:[-:][a-z0-9]+)*"
-        />
-        <label className="flex items-start gap-3">
-          <input
-            className="mt-1"
-            name="emailDigestEnabled"
-            type="checkbox"
-            defaultChecked
+          <Field
+            label={cs.postalCodePrefix}
+            name="postalCodePrefix"
+            defaultValue="110"
+            pattern="[0-9]{3}"
           />
-          <span>{cs.emailDigest}</span>
-        </label>
-        <Submit pending={pending} label={cs.finishOnboarding} />
-        {message ? <p role="status">{message}</p> : null}
-      </form>
+          <label className="flex items-start gap-3">
+            <input
+              className="mt-1"
+              name="onlineEnabled"
+              type="checkbox"
+              defaultChecked
+            />
+            <span>{cs.onlineChannel}</span>
+          </label>
+          <Field
+            label={cs.loyaltyProgram}
+            name="loyaltyProgram"
+            placeholder="např. clubcard"
+            pattern="[a-z0-9]+(?:[-:][a-z0-9]+)*"
+          />
+          <label className="flex items-start gap-3">
+            <input
+              className="mt-1"
+              name="emailDigestEnabled"
+              type="checkbox"
+              defaultChecked
+            />
+            <span>{cs.emailDigest}</span>
+          </label>
+          <Submit pending={pending} label={cs.finishOnboarding} />
+          {message ? <p role="status">{message}</p> : null}
+        </form>
+        <OffersDashboard tenantId={tenantId} />
+      </div>
     );
   }
 

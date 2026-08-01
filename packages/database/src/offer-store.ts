@@ -46,36 +46,40 @@ export class TypeOrmOfferStore implements OfferStore {
         }),
       );
 
-      return publishedOfferSchema.parse({
-        contractVersion: saved.contractVersion,
-        id: saved.id,
-        retailerProductId: saved.retailerProductId,
-        sourceScopeId: saved.sourceScopeId,
-        canonicalProductClassId: saved.canonicalProductClassId,
-        exactName: saved.exactName,
-        variantAttributes: saved.variantAttributes,
-        package: saved.package,
-        price: { amount: saved.priceAmount, currency: saved.currency.trim() },
-        regularPrice:
-          saved.regularPriceAmount === null
-            ? null
-            : {
-                amount: saved.regularPriceAmount,
-                currency: saved.currency.trim(),
-              },
-        discountPercent:
-          saved.discountPercent === null ? null : Number(saved.discountPercent),
-        comparisonUnit: saved.comparisonUnit,
-        unitPrices: saved.unitPrices,
-        membership: saved.membership,
-        channel: saved.channel,
-        locality: saved.locality,
-        availability: saved.availability,
-        validity: saved.validity,
-        evidence: saved.evidence,
-        parserVersion: saved.parserVersion,
-        status: saved.status,
-      });
+      return mapPublishedOfferRecord(saved);
     });
   }
+}
+
+export function mapPublishedOfferRecord(record: OfferRecord): PublishedOffer {
+  return publishedOfferSchema.parse({
+    contractVersion: record.contractVersion,
+    id: record.id,
+    retailerProductId: record.retailerProductId,
+    sourceScopeId: record.sourceScopeId,
+    canonicalProductClassId: record.canonicalProductClassId,
+    exactName: record.exactName,
+    variantAttributes: record.variantAttributes,
+    package: record.package,
+    price: { amount: record.priceAmount, currency: record.currency.trim() },
+    regularPrice:
+      record.regularPriceAmount === null
+        ? null
+        : {
+            amount: record.regularPriceAmount,
+            currency: record.currency.trim(),
+          },
+    discountPercent:
+      record.discountPercent === null ? null : Number(record.discountPercent),
+    comparisonUnit: record.comparisonUnit,
+    unitPrices: record.unitPrices,
+    membership: record.membership,
+    channel: record.channel,
+    locality: record.locality,
+    availability: record.availability,
+    validity: record.validity,
+    evidence: record.evidence,
+    parserVersion: record.parserVersion,
+    status: record.status,
+  });
 }

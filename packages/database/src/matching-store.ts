@@ -260,7 +260,7 @@ export class TypeOrmMatchingStore {
           evaluatedAt: new Date(match.evaluatedAt),
         }),
       );
-      return toMatchedOffer(saved);
+      return mapMatchRecord(saved);
     });
   }
 
@@ -272,7 +272,7 @@ export class TypeOrmMatchingStore {
       where: { tenantId: actorTenantId, watchRuleId },
       order: { evaluatedAt: "ASC", id: "ASC" },
     });
-    return records.map(toMatchedOffer);
+    return records.map(mapMatchRecord);
   }
 }
 
@@ -295,7 +295,7 @@ function toWatchRule(record: WatchRuleRecord): UserWatchRule {
   });
 }
 
-function toMatchedOffer(record: MatchRecord): MatchedOffer {
+export function mapMatchRecord(record: MatchRecord): MatchedOffer {
   return matchedOfferSchema.parse({
     id: record.id.trim(),
     tenantId: record.tenantId,

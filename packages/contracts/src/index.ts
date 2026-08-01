@@ -1,3 +1,4 @@
+export * from "./dashboard";
 export * from "./offer";
 export * from "./onboarding";
 export * from "./notification";

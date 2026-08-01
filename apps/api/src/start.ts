@@ -1,6 +1,7 @@
 import {
   createAppDataSource,
   TypeOrmOnboardingStore,
+  TypeOrmOffersDashboardStore,
   TypeOrmNormalizationStore,
 } from "@shopsmart/database";
 
@@ -25,6 +26,7 @@ const authRuntime = createShopSmartAuth({
 const app = await buildApp(new TypeOrmNormalizationStore(dataSource), {
   auth: authRuntime.auth,
   onboardingStore: new TypeOrmOnboardingStore(dataSource),
+  dashboardStore: new TypeOrmOffersDashboardStore(dataSource),
 });
 
 const close = async () => {
