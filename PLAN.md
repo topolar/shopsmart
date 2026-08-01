@@ -332,6 +332,8 @@ canonical offers × user rules                 → levné DB matching
 
 Je-li cena celostátní, ingest je celostátní. Liší-li se podle regionu nebo typu letáku, scope je regionální. Vyžaduje-li konkrétní pobočku nebo adresu, konektor musí explicitně modelovat lokalizační scope a nesmí vydávat národní stránku za místní dostupnost.
 
+První schválený scope je oficiální veřejná stránka `Kaufland Praha-Vypich`. Přístupový, rate-limit, retenční a fail-closed kontrakt je v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md). Jde pouze o fyzickou letákovou aplikovatelnost pro konkrétní pobočku, nikoli o důkaz aktuálního skladového kusu.
+
 ---
 
 ## 5. Doménový model
@@ -543,7 +545,7 @@ Implementované kontrakty v1 pro canonical products, retailer products, offers, 
 
 - potvrdit stack a licenci;
 - definovat canonical schemas a evidence levels;
-- vybrat první legálně dostupné oficiální zdroje;
+- první český oficiální source scope byl vybrán v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md); další retailer vyžaduje vlastní source review;
 - threat model a PII klasifikace;
 - fixture policy;
 - CI skeleton vytvořit až s první testovanou vertical slice.
@@ -651,15 +653,14 @@ Sledovat minimálně:
 Před implementací je potřeba rozhodnout:
 
 - právní/licenční režim repozitáře;
-- které zdroje mají povolený automatizovaný přístup;
-- první region a řetězce;
+- které další zdroje po prvním Kaufland scope splní source review;
 - konkrétní generátor OpenAPI z TypeScript kontraktů;
 - okamžik a konkrétní queue technologie po vyhodnocení PostgreSQL job leasingu;
 - produkční konfigurace vybraného Resend adapteru, domény a webhooku (výběr viz [`ADR 0003`](docs/decisions/0003-transactional-email-provider.md));
 - přesná definice „nejlepší nabídky“ pro pravidlo bez uživatelského prahu;
 - jak modelovat skupinové letáky a store-type scopes;
 - kdo a jak schvaluje AI product mappings;
-- retention raw snapshotů;
+- obecná retention raw snapshotů pro další konektory; první Kaufland scope má 72hodinovou politiku v [`ADR 0004`](docs/decisions/0004-first-retailer-source.md);
 - obchodní model bez ovlivnění nestranného řazení.
 
 ---

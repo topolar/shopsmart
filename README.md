@@ -11,6 +11,7 @@ Repozitář obsahuje dokumentační a architektonický základ a testovaný Type
 - [`PLAN.md`](PLAN.md) — podrobný plán, praktická zjištění z osobního pilotu, doménový model, architektura, roadmapa a hranice AI.
 - [`docs/TECHNICAL_ARCHITECTURE.md`](docs/TECHNICAL_ARCHITECTURE.md) — zvolený local-first stack, porty, Docker/PostgreSQL, Cloudflare Tunnel a cesta k produkčnímu hostingu.
 - [`docs/CONNECTOR_OPERATIONS.md`](docs/CONNECTOR_OPERATIONS.md) — PostgreSQL leasing, TTL/early refresh, coverage manifesty a provozní stavy connectorů.
+- [`docs/decisions/0004-first-retailer-source.md`](docs/decisions/0004-first-retailer-source.md) — první český source scope: Kaufland Praha-Vypich, povolené cesty, rate limit, retention a fail-closed pravidla.
 - [`AGENTS.md`](AGENTS.md) — závazné instrukce pro coding agenty a budoucí příspěvky.
 
 ## Hlavní princip
@@ -62,7 +63,7 @@ pnpm smoke
 
 ## Další krok
 
-Rozšiřovat baseline podle navazujících GitHub Issues: první povolený shared-ingestion zdroj a produkční Resend adapter s ověřenými webhooky.
+Implementovat podle navazujících GitHub Issues první Kaufland shared-ingestion konektor a produkční Resend adapter s ověřenými webhooky.
 
 ## Vývojový workflow
 
