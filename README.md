@@ -16,6 +16,7 @@ Repozitář obsahuje dokumentační a architektonický základ a testovaný Type
 - [`docs/TECHNICAL_ARCHITECTURE.md`](docs/TECHNICAL_ARCHITECTURE.md) — zvolený local-first stack, porty, Docker/PostgreSQL, Cloudflare Tunnel a cesta k produkčnímu hostingu.
 - [`docs/CONNECTOR_OPERATIONS.md`](docs/CONNECTOR_OPERATIONS.md) — PostgreSQL leasing, TTL/early refresh, coverage manifesty a provozní stavy connectorů.
 - [`docs/decisions/0004-first-retailer-source.md`](docs/decisions/0004-first-retailer-source.md) — první český source scope: Kaufland Praha-Vypich, povolené cesty, rate limit, retention a fail-closed pravidla.
+- [`docs/decisions/0005-albert-leaflet-source.md`](docs/decisions/0005-albert-leaflet-source.md) — oficiální české Albert supermarket/hypermarket letáky, PDF extrakce, rate limit a fail-closed pravidla.
 - [`docs/AI_ASSIST_OPERATIONS.md`](docs/AI_ASSIST_OPERATIONS.md) — verzované AI candidate kontrakty, deterministické brány, nákladové limity, cache a operátorské review.
 - [`AGENTS.md`](AGENTS.md) — závazné instrukce pro coding agenty a budoucí příspěvky.
 
@@ -64,7 +65,7 @@ pnpm build
 pnpm smoke
 ```
 
-`pnpm smoke` vyžaduje běžící PostgreSQL, aplikované migrace a `DATABASE_URL` v prostředí.
+`pnpm smoke` vyžaduje běžící PostgreSQL, aplikované migrace a `DATABASE_URL` v prostředí. Integrační testy používají výhradně jednorázovou databázi z `DATABASE_TEST_URL`; lokální `DATABASE_URL` se nikdy testovacím cleanupem nemaže. V kontejneru ji jednorázově vytvoříte příkazem `docker exec shopsmart-postgres createdb -U shopsmart_app shopsmart_test`.
 
 ## Další krok
 
@@ -78,6 +79,18 @@ pnpm mapping:kaufland approve --candidate <candidate-uuid> --canonical <class-uu
 ```
 
 `ingest:kaufland` respektuje sdílený due time; nespouštějte ruční opakování uvnitř šestihodinového minima z ADR 0004. Raw HTML zůstává pouze v ignorovaném `SHOPSMART_RAW_SNAPSHOT_DIR` a po 72 hodinách se maže. Výstup příkazů obsahuje jen agregáty nebo review metadata, ne raw obsah.
+
+Albert konektor sdíleně obsluhuje oba české typy letáku a zůstává v TypeScriptu:
+
+```powershell
+pnpm ingest:albert
+pnpm mapping:albert list --scope supermarket
+pnpm mapping:albert list --scope hypermarket
+pnpm mapping:albert classes
+pnpm mapping:albert approve --candidate <candidate-uuid> --canonical <class-uuid> --reviewer local-operator --attributes '{"state":"fresh"}'
+```
+
+`ingest:albert` načte oficiální index jednou pouze tehdy, když je alespoň jeden scope due, a každou PDF třídu nejvýše jednou za 12 hodin. Raw PDF je jen v ignorovaném `SHOPSMART_ALBERT_RAW_SNAPSHOT_DIR` a po 72 hodinách se maže. Bez explicitního mapování vznikne pouze review kandidát; leták netvrdí skladovou dostupnost.
 
 Navazující krok je první provozní review zachycených kandidátů a podle GitHub Issues produkční Resend adapter s ověřenými webhooky.
 

@@ -68,4 +68,28 @@ describe("FileSystemRawSnapshotStore", () => {
       }),
     ).rejects.toThrow("retrievedAt");
   });
+
+  it("stores binary PDF evidence without converting it to text", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "shopsmart-snapshot-test-"));
+    temporaryDirectories.push(directory);
+    const store = new FileSystemRawSnapshotStore(directory);
+    const contentHash = "c".repeat(64);
+    const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x00, 0xff]);
+
+    const stored = await store.writeBinary({
+      bytes,
+      extension: "pdf",
+      contentHash,
+      retrievedAt: "2026-08-01T12:00:00.000Z",
+      rawDeleteAt: "2026-08-04T12:00:00.000Z",
+    });
+
+    expect(stored.storageKey).toBe(`1785844800000-${contentHash}.pdf`);
+    await expect(readFile(stored.absolutePath)).resolves.toEqual(
+      Buffer.from(bytes),
+    );
+    await expect(
+      store.purgeExpired("2026-08-04T12:00:00.000Z"),
+    ).resolves.toEqual([stored.storageKey]);
+  });
 });

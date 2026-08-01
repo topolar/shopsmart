@@ -15,6 +15,14 @@ type WriteRawSnapshotInput = Readonly<{
   rawDeleteAt: string;
 }>;
 
+type WriteBinaryRawSnapshotInput = Readonly<{
+  bytes: Uint8Array;
+  extension: "pdf";
+  contentHash: string;
+  retrievedAt: string;
+  rawDeleteAt: string;
+}>;
+
 export type StoredRawSnapshot = Readonly<{
   storageKey: string;
   absolutePath: string;
@@ -29,6 +37,34 @@ export class FileSystemRawSnapshotStore {
   }
 
   async write(input: WriteRawSnapshotInput): Promise<StoredRawSnapshot> {
+    return this.writeContent({
+      content: Buffer.from(input.html, "utf8"),
+      extension: "html",
+      contentHash: input.contentHash,
+      retrievedAt: input.retrievedAt,
+      rawDeleteAt: input.rawDeleteAt,
+    });
+  }
+
+  async writeBinary(
+    input: WriteBinaryRawSnapshotInput,
+  ): Promise<StoredRawSnapshot> {
+    return this.writeContent({
+      content: Buffer.from(input.bytes),
+      extension: input.extension,
+      contentHash: input.contentHash,
+      retrievedAt: input.retrievedAt,
+      rawDeleteAt: input.rawDeleteAt,
+    });
+  }
+
+  private async writeContent(input: {
+    content: Buffer;
+    extension: "html" | "pdf";
+    contentHash: string;
+    retrievedAt: string;
+    rawDeleteAt: string;
+  }): Promise<StoredRawSnapshot> {
     if (!/^[a-f0-9]{64}$/.test(input.contentHash)) {
       throw new Error("contentHash must be a lowercase SHA-256 digest.");
     }
@@ -45,11 +81,10 @@ export class FileSystemRawSnapshotStore {
     }
 
     await mkdir(this.rootDirectory, { recursive: true });
-    const storageKey = `${rawDeleteAt.getTime()}-${input.contentHash}.html`;
+    const storageKey = `${rawDeleteAt.getTime()}-${input.contentHash}.${input.extension}`;
     const absolutePath = this.resolveStorageKey(storageKey);
     try {
-      await writeFile(absolutePath, input.html, {
-        encoding: "utf8",
+      await writeFile(absolutePath, input.content, {
         flag: "wx",
         mode: 0o600,
       });
@@ -61,8 +96,8 @@ export class FileSystemRawSnapshotStore {
           cause: error,
         });
       }
-      const existing = await readFile(absolutePath, "utf8");
-      if (existing !== input.html) {
+      const existing = await readFile(absolutePath);
+      if (!existing.equals(input.content)) {
         throw new Error("Snapshot storage key collision.", { cause: error });
       }
     }
@@ -76,7 +111,7 @@ export class FileSystemRawSnapshotStore {
     for (const entry of await readdir(this.rootDirectory, {
       withFileTypes: true,
     })) {
-      const match = /^(\d{13})-[a-f0-9]{64}\.html$/.exec(entry.name);
+      const match = /^(\d{13})-[a-f0-9]{64}\.(?:html|pdf)$/.exec(entry.name);
       if (!match || !entry.isFile() || Number(match[1]) > now.getTime()) {
         continue;
       }
