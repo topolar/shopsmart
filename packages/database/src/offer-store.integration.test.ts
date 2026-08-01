@@ -119,15 +119,18 @@ async function clearCatalogue(
     .getRepository(OfferRecord)
     .createQueryBuilder()
     .delete()
+    .where("id = :id", { id: "018f5f70-7b5d-7a21-9f49-01b7f63a9104" })
     .execute();
   await dataSource
     .getRepository(RetailerProductRecord)
     .createQueryBuilder()
     .delete()
+    .where("id = :id", { id: "018f5f70-7b5d-7a21-9f49-01b7f63a9102" })
     .execute();
   await dataSource
     .getRepository(CanonicalProductClassRecord)
     .createQueryBuilder()
     .delete()
+    .where("id = :id", { id: "018f5f70-7b5d-7a21-9f49-01b7f63a9101" })
     .execute();
 }
