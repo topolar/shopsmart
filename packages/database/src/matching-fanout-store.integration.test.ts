@@ -4,8 +4,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { integrationDatabaseUrl } from "../../../tests/integration-database.js";
 import { runMatchingFanOut } from "../../../workers/matching/src/matching-operation.js";
+import { runDigestPlanning } from "../../../workers/notifications/src/digest-planning.js";
 
 import { createAppDataSource } from "./data-source.js";
+import { TypeOrmDigestPlanningStore } from "./digest-planning-store.js";
 import { TypeOrmMatchingFanOutStore } from "./matching-fanout-store.js";
 import {
   MatchRecord,
@@ -20,7 +22,14 @@ import {
 } from "./offer-record.js";
 import { TypeOrmOfferStore } from "./offer-store.js";
 import { TypeOrmOffersDashboardStore } from "./offers-dashboard-store.js";
-import { StoreRecord } from "./onboarding-store.js";
+import {
+  NotificationEventRecord,
+  NotificationOutboxRecord,
+} from "./notification-outbox.js";
+import {
+  NotificationPreferenceRecord,
+  StoreRecord,
+} from "./onboarding-store.js";
 
 const databaseUrl = integrationDatabaseUrl();
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -108,6 +117,29 @@ describeWithDatabase("matching fan-out persistence", () => {
       city: "Česko",
       sourceUrl: "https://www.albert.cz/aktualni-letaky",
     });
+    await dataSource.getRepository(NotificationPreferenceRecord).save([
+      {
+        tenantId: ids.tenantA,
+        emailDigestEnabled: true,
+        locale: "cs",
+        timezone: "Europe/Prague",
+      },
+      {
+        tenantId: ids.tenantB,
+        emailDigestEnabled: true,
+        locale: "cs",
+        timezone: "Europe/Prague",
+      },
+    ]);
+    await dataSource.query(
+      `INSERT INTO "user" ("id", "name", "email", "tenantId") VALUES ($1, $2, $3, $4)`,
+      [
+        `digest-user-${ids.tenantA}`,
+        "Synthetic digest user",
+        "digest-user@example.invalid",
+        ids.tenantA,
+      ],
+    );
     await new TypeOrmMatchingStore(dataSource).saveWatchRule(
       ids.tenantA,
       watchRule,
@@ -208,6 +240,91 @@ describeWithDatabase("matching fan-out persistence", () => {
       groups: [],
     });
   });
+
+  it("plans one aggregate outbox item and makes an unchanged second plan silent", async () => {
+    if (!dataSource) throw new Error("Test database was not initialized.");
+    await runMatchingFanOut(
+      new TypeOrmMatchingFanOutStore(dataSource),
+      "2026-08-01T12:00:00.000Z",
+    );
+    const planner = new TypeOrmDigestPlanningStore(dataSource);
+
+    await expect(
+      runDigestPlanning(planner, "2026-08-01"),
+    ).resolves.toMatchObject({
+      candidateTenantCount: 1,
+      candidateFactCount: 1,
+      enqueuedCount: 1,
+      skippedCounts: {},
+    });
+    await expect(
+      runDigestPlanning(planner, "2026-08-01"),
+    ).resolves.toMatchObject({
+      candidateTenantCount: 0,
+      candidateFactCount: 0,
+      enqueuedCount: 0,
+    });
+    await expect(
+      dataSource.getRepository(NotificationOutboxRecord).find(),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        tenantId: ids.tenantA,
+        intervalKey: "2026-08-01",
+        recipientEmail: "digest-user@example.invalid",
+        status: "pending",
+      }),
+    ]);
+    await expect(
+      dataSource.getRepository(NotificationEventRecord).count(),
+    ).resolves.toBe(1);
+  });
+
+  it("fails closed for ambiguous recipients and invalid persisted evidence", async () => {
+    if (!dataSource) throw new Error("Test database was not initialized.");
+    await runMatchingFanOut(
+      new TypeOrmMatchingFanOutStore(dataSource),
+      "2026-08-01T12:00:00.000Z",
+    );
+    await dataSource.query(
+      `INSERT INTO "user" ("id", "name", "email", "tenantId") VALUES ($1, $2, $3, $4)`,
+      [
+        `digest-user-second-${ids.tenantA}`,
+        "Synthetic second digest user",
+        "digest-second@example.invalid",
+        ids.tenantA,
+      ],
+    );
+    const planner = new TypeOrmDigestPlanningStore(dataSource);
+    await expect(
+      runDigestPlanning(planner, "2026-08-01"),
+    ).resolves.toMatchObject({
+      enqueuedCount: 0,
+      skippedCounts: { AMBIGUOUS_RECIPIENT: 1 },
+    });
+    await expect(
+      dataSource.getRepository(NotificationOutboxRecord).count(),
+    ).resolves.toBe(0);
+
+    await dataSource.query(`DELETE FROM "user" WHERE "id" = $1`, [
+      `digest-user-second-${ids.tenantA}`,
+    ]);
+    const offer = publishedOffer();
+    await dataSource
+      .getRepository(OfferRecord)
+      .update(
+        { id: offer.id },
+        { evidence: { ...offer.evidence, level: "candidate-only" } },
+      );
+    await expect(
+      runDigestPlanning(planner, "2026-08-01"),
+    ).resolves.toMatchObject({
+      enqueuedCount: 0,
+      skippedCounts: { INVALID_FACTS: 1 },
+    });
+    await expect(
+      dataSource.getRepository(NotificationOutboxRecord).count(),
+    ).resolves.toBe(0);
+  });
 });
 
 function publishedOffer() {
@@ -260,6 +377,16 @@ async function clearData(
   dataSource: NonNullable<ReturnType<typeof createAppDataSource>>,
 ) {
   for (const [record, condition, parameters] of [
+    [
+      NotificationEventRecord,
+      "tenant_id IN (:...ids)",
+      { ids: [ids.tenantA, ids.tenantB] },
+    ],
+    [
+      NotificationOutboxRecord,
+      "tenant_id IN (:...ids)",
+      { ids: [ids.tenantA, ids.tenantB] },
+    ],
     [
       MatchRecord,
       "tenant_id IN (:...ids)",

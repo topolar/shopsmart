@@ -103,6 +103,14 @@ Worker nespouští žádný source fetch ani job pro jednotlivého uživatele. P
 
 Po přihlášení lze ve webu vybrat známé kamenné zdroje, uložit onboarding a založit strukturované hlídání canonical produktu s maximální jednotkovou cenou v CZK. API odvozuje jednotku a povinné/excluded atributy ze serverového katalogu, ověřuje prodejny a členství proti tenant onboarding volbám a nepřijímá klientem oslabenou identitu produktu. Nové shody se objeví po následujícím společném `pnpm match:run-once`; vytvoření pravidla samo žádný retailer nestahuje.
 
+Dosud nezařazené shody lze připravit do transakčního notification outboxu bez odeslání providerovi:
+
+```powershell
+pnpm digest:plan-once --interval 2026-08-01
+```
+
+Interval key musí být stabilní pro plánovanou dávku. Planner načte fakta jednou, seskupí je po tenantu, ověří publikovatelnou evidenci přes společný renderer a odmítne chybějící či nejednoznačný recipient fail-closed. CLI vypisuje jen agregované počty; e-mailové adresy ani payloady neloguje a žádný provider nevolá. Opakovaný běh nezaloží duplicitní novelty events.
+
 Navazující krok je první provozní review zachycených kandidátů a podle GitHub Issues produkční Resend adapter s ověřenými webhooky.
 
 ## Vývojový workflow
