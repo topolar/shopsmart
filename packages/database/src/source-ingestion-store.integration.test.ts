@@ -9,6 +9,7 @@ import type { DataSource } from "typeorm";
 import { createAppDataSource } from "./data-source.js";
 import {
   QuarantinedSourceCandidateRecord,
+  RetailerProductMappingCandidateRecord,
   SourceSnapshotRecord,
   TypeOrmSourceIngestionStore,
 } from "./source-ingestion-store.js";
@@ -179,9 +180,94 @@ describeWithDatabase("Kaufland source ingestion persistence", () => {
       }),
     ).toBe(0);
   });
+
+  it("retains unmapped candidates and requires one explicit immutable approval", async () => {
+    if (!store) throw new Error("Store was not initialized.");
+    const parsed = processKauflandStoreSnapshot({
+      html: syntheticIngestionPage,
+      httpStatus: 200,
+      retrievedAt: "2026-08-01T12:00:00.000Z",
+      productMappings: [],
+    });
+    await store.persist(parsed, { rawStorageKey: null });
+
+    const pending = await store.listPendingKauflandMappings();
+    expect(pending).toHaveLength(2);
+    expect(pending).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          externalId: "ingestion-1",
+          exactName: "Syntetické banány čerstvé",
+          status: "pending",
+          sourceSnapshotId: expect.any(String),
+        }),
+      ]),
+    );
+    const candidate = pending.find(
+      ({ externalId }) => externalId === "ingestion-1",
+    );
+    if (!candidate) throw new Error("Synthetic candidate was not retained.");
+    await expect(store.listKauflandCanonicalClasses()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: canonicalProductClassId,
+          slug: "synthetic-ingestion-bananas",
+          comparisonUnit: "kilogram",
+        }),
+        expect.objectContaining({
+          id: "a1000000-0000-8000-8000-000000000009",
+          slug: "fresh-bananas",
+          comparisonUnit: "kilogram",
+        }),
+      ]),
+    );
+    await expect(
+      store.approveKauflandMapping({
+        candidateId: candidate.id,
+        canonicalProductClassId: "a1000000-0000-8000-8000-000000000009",
+        variantAttributes: {},
+        reviewedBy: "local-operator",
+        reviewedAt: "2026-08-01T12:30:00.000Z",
+      }),
+    ).rejects.toThrow("MAPPING_ATTRIBUTE_MISMATCH");
+
+    await store.approveKauflandMapping({
+      candidateId: candidate.id,
+      canonicalProductClassId,
+      variantAttributes: { preparation: "fresh" },
+      reviewedBy: "local-operator",
+      reviewedAt: "2026-08-01T13:00:00.000Z",
+    });
+
+    await expect(store.loadApprovedKauflandMappings()).resolves.toEqual([
+      {
+        externalId: "ingestion-1",
+        canonicalProductClassId,
+        comparisonUnit: "kilogram",
+        variantAttributes: { preparation: "fresh" },
+      },
+    ]);
+    await expect(
+      store.approveKauflandMapping({
+        candidateId: candidate.id,
+        canonicalProductClassId,
+        variantAttributes: {},
+        reviewedBy: "second-operator",
+        reviewedAt: "2026-08-01T14:00:00.000Z",
+      }),
+    ).rejects.toThrow("MAPPING_ALREADY_REVIEWED");
+  });
 });
 
 async function cleanup(dataSource: DataSource) {
+  await dataSource
+    .getRepository(RetailerProductMappingCandidateRecord)
+    .createQueryBuilder()
+    .delete()
+    .where("source_scope_key = :scope", {
+      scope: KAUFLAND_PRAHA_VYPICH_SCOPE.key,
+    })
+    .execute();
   await dataSource
     .getRepository(QuarantinedSourceCandidateRecord)
     .createQueryBuilder()

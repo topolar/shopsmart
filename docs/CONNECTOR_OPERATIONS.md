@@ -18,6 +18,15 @@ An access challenge is permanent for that run and is never retried automatically
 
 The connector proves physical flyer applicability only. It sets stock to `not-asserted` and cannot produce online availability.
 
+### Local operator commands
+
+- `pnpm ingest:kaufland` purges expired raw files, registers and claims only the approved source scope, loads approved mappings, and performs at most one due fetch.
+- `pnpm mapping:kaufland list` lists pending mapping candidates with snapshot IDs but no raw response body.
+- `pnpm mapping:kaufland classes` lists the stable initial Czech canonical catalogue.
+- `pnpm mapping:kaufland approve --candidate <uuid> --canonical <uuid> --reviewer <operator-id> --attributes '<json>'` records one explicit approval. A reviewed mapping cannot be silently replaced.
+
+The initial catalogue contains the 13 Czech reference product classes from `PLAN.md` and uses stable IDs. Approval remains fail-closed: the canonical class must exist, attributes must be bounded strings, and an unmapped or unreviewed candidate never produces an offer. Approved mappings are shared by the source connector and are not tenant-specific.
+
 ## State machine
 
 - `idle`: due according to the source policy;

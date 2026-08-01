@@ -9,6 +9,8 @@ import { CreateAuthOnboarding20260801120000 } from "./migrations/20260801120000-
 import { CreateNotificationOutbox20260801130000 } from "./migrations/20260801130000-create-notification-outbox.js";
 import { CreateConnectorOperations20260801140000 } from "./migrations/20260801140000-create-connector-operations.js";
 import { CreateSourceIngestion20260801150000 } from "./migrations/20260801150000-create-source-ingestion.js";
+import { CreateRetailerMappingReview20260801160000 } from "./migrations/20260801160000-create-retailer-mapping-review.js";
+import { SeedInitialCzechCatalog20260801161000 } from "./migrations/20260801161000-seed-initial-czech-catalog.js";
 import {
   connectorJobRecordSchema,
   connectorRefreshEventRecordSchema,
@@ -40,6 +42,7 @@ import {
 } from "./offer-record.js";
 import {
   quarantinedSourceCandidateRecordSchema,
+  retailerProductMappingCandidateRecordSchema,
   sourceSnapshotRecordSchema,
 } from "./source-ingestion-store.js";
 
@@ -77,6 +80,7 @@ export function createAppDataSource(
       connectorRefreshEventRecordSchema,
       sourceSnapshotRecordSchema,
       quarantinedSourceCandidateRecordSchema,
+      retailerProductMappingCandidateRecordSchema,
     ],
     migrations: [
       CreateNormalizationRecords20260801090000,
@@ -86,6 +90,8 @@ export function createAppDataSource(
       CreateNotificationOutbox20260801130000,
       CreateConnectorOperations20260801140000,
       CreateSourceIngestion20260801150000,
+      CreateRetailerMappingReview20260801160000,
+      SeedInitialCzechCatalog20260801161000,
     ],
     migrationsTableName: "shopsmart_migrations",
   });

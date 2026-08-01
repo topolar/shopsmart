@@ -63,7 +63,18 @@ pnpm smoke
 
 ## Další krok
 
-Rozšířit první Kaufland shared-ingestion konektor o provozní mapování retailer produktů a podle navazujících GitHub Issues implementovat produkční Resend adapter s ověřenými webhooky.
+První Kaufland shared-ingestion konektor lze lokálně spustit a jeho neurčené produkty explicitně mapovat:
+
+```powershell
+pnpm ingest:kaufland
+pnpm mapping:kaufland list
+pnpm mapping:kaufland classes
+pnpm mapping:kaufland approve --candidate <candidate-uuid> --canonical <class-uuid> --reviewer local-operator --attributes '{"state":"fresh"}'
+```
+
+`ingest:kaufland` respektuje sdílený due time; nespouštějte ruční opakování uvnitř šestihodinového minima z ADR 0004. Raw HTML zůstává pouze v ignorovaném `SHOPSMART_RAW_SNAPSHOT_DIR` a po 72 hodinách se maže. Výstup příkazů obsahuje jen agregáty nebo review metadata, ne raw obsah.
+
+Navazující krok je první provozní review zachycených kandidátů a podle GitHub Issues produkční Resend adapter s ověřenými webhooky.
 
 ## Vývojový workflow
 

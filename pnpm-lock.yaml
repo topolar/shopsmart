@@ -201,6 +201,9 @@ importers:
       '@shopsmart/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@shopsmart/database':
+        specifier: workspace:*
+        version: link:../../packages/database
     devDependencies:
       typescript:
         specifier: 6.0.3

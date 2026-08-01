@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@shopsmart/connectors": "workspace:*",
-    "@shopsmart/contracts": "workspace:*"
+    "@shopsmart/contracts": "workspace:*",
+    "@shopsmart/database": "workspace:*"
   },
   "devDependencies": {
     "typescript": "6.0.3"
