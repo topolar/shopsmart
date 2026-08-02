@@ -89,6 +89,7 @@ describe("local Globus operation", () => {
       status: "reprocessed",
       offerCount: 0,
       quarantineCount: 1,
+      contentHash: hash,
     });
     expect(rawSnapshots.read).toHaveBeenCalledTimes(1);
     expect(ingestion.latestRetainedRetrieval).toHaveBeenCalledTimes(1);

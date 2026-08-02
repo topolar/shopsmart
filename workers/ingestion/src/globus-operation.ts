@@ -2,6 +2,7 @@ import {
   createGlobusNotModifiedResult,
   fetchGlobusFeaturedPage,
   GLOBUS_BRNO_SCOPE,
+  GLOBUS_CONNECTOR_MANIFEST,
   GLOBUS_FEATURED_PARSER_VERSION,
   GlobusAccessError,
   type GlobusFetchResult,
@@ -9,6 +10,14 @@ import {
   type GlobusSnapshotResult,
   processGlobusFeaturedSnapshot,
 } from "@shopsmart/connectors";
+
+import {
+  connectorRateLimitUntil,
+  nextConnectorDueAt,
+  prepareConnectorRun,
+  reprocessRetainedSnapshot,
+  type StoredConnectorRetrieval,
+} from "./connector-runtime.js";
 
 type Claim = Readonly<{
   id: string;
@@ -30,7 +39,9 @@ type Previous = Readonly<{
 
 type IngestionPort = Readonly<{
   latestRetrieval(sourceScopeKey: string): Promise<Previous | null>;
-  latestRetainedRetrieval(sourceScopeKey: string): Promise<Previous | null>;
+  latestRetainedRetrieval(
+    sourceScopeKey: string,
+  ): Promise<StoredConnectorRetrieval | null>;
   loadApprovedGlobusMappings(): Promise<readonly GlobusProductMapping[]>;
   persistGlobus(
     result: GlobusSnapshotResult,
@@ -77,6 +88,8 @@ type JobPort = Readonly<{
       key: string;
       status: "fetched" | "unchanged" | "quarantined";
       candidateCount: number;
+      offerCount: number;
+      quarantineCount: number;
       reasonCode: string | null;
     }>;
   }): Promise<void>;
@@ -98,31 +111,23 @@ export async function runGlobusOperationOnce(input: {
   rawSnapshots: RawPort;
   fetchPage?: typeof fetchGlobusFeaturedPage;
 }) {
-  const now = parseCanonicalTimestamp(input.now);
-  const deleted = await input.rawSnapshots.purgeExpired(input.now);
-  await input.ingestion.markRawDeleted(deleted, input.now);
-  await input.jobs.register({
-    sourceScopeKey: GLOBUS_BRNO_SCOPE.key,
-    requiredCoverageKeys: [GLOBUS_BRNO_SCOPE.key],
-    dueAt: input.now,
-    expectedParserVersion: GLOBUS_FEATURED_PARSER_VERSION,
-    maxAttempts: 3,
-  });
-  const [claim] = await input.jobs.claimDue({
-    workerId: input.workerId,
+  const prepared = await prepareConnectorRun({
+    manifest: GLOBUS_CONNECTOR_MANIFEST,
     now: input.now,
-    leaseSeconds: 15 * 60,
-    limit: 1,
-    sourceScopeKey: GLOBUS_BRNO_SCOPE.key,
+    workerId: input.workerId,
+    jobs: input.jobs,
+    retention: {
+      purgeExpired: (now) => input.rawSnapshots.purgeExpired(now),
+      markRawDeleted: (storageKeys, deletedAt) =>
+        input.ingestion.markRawDeleted(storageKeys, deletedAt),
+    },
   });
+  const [claim] = prepared.claims;
   if (!claim)
-    return { status: "not-due" as const, deletedRawCount: deleted.length };
-  if (
-    claim.leaseOwner !== input.workerId ||
-    claim.sourceScopeKey !== GLOBUS_BRNO_SCOPE.key
-  ) {
-    throw new Error("The worker does not own the Globus connector lease.");
-  }
+    return {
+      status: "not-due" as const,
+      deletedRawCount: prepared.deletedRawCount,
+    };
 
   let result: GlobusSnapshotResult;
   try {
@@ -158,12 +163,14 @@ export async function runGlobusOperationOnce(input: {
     await input.ingestion.persistGlobus(result, { rawStorageKey });
   } catch (error) {
     if (error instanceof GlobusAccessError && error.code === "RATE_LIMITED") {
-      const minimum = now.getTime() + 6 * 60 * 60 * 1_000;
       await input.jobs.recordRateLimit(
         claim.id,
-        new Date(
-          Math.max(minimum, error.retryAt ? Date.parse(error.retryAt) : 0),
-        ).toISOString(),
+        connectorRateLimitUntil(
+          GLOBUS_CONNECTOR_MANIFEST,
+          GLOBUS_BRNO_SCOPE.key,
+          input.now,
+          error.retryAt,
+        ),
       );
     } else {
       const errorCode =
@@ -189,7 +196,11 @@ export async function runGlobusOperationOnce(input: {
     jobId: claim.id,
     workerId: input.workerId,
     completedAt: input.now,
-    nextDueAt: new Date(now.getTime() + 12 * 60 * 60 * 1_000).toISOString(),
+    nextDueAt: nextConnectorDueAt(
+      GLOBUS_CONNECTOR_MANIFEST,
+      GLOBUS_BRNO_SCOPE.key,
+      input.now,
+    ),
     parserVersion: result.retrieval.parserVersion,
     contentHash: result.retrieval.contentHash,
     coverageItems: [
@@ -197,6 +208,8 @@ export async function runGlobusOperationOnce(input: {
         key: GLOBUS_BRNO_SCOPE.key,
         status: result.status === "parsed" ? "fetched" : result.status,
         candidateCount: result.offers.length + result.quarantines.length,
+        offerCount: result.offers.length,
+        quarantineCount: result.quarantines.length,
         reasonCode:
           result.status === "quarantined"
             ? (result.quarantines[0]?.reasonCode ?? "PARSE_QUARANTINED")
@@ -208,7 +221,7 @@ export async function runGlobusOperationOnce(input: {
     status: result.status,
     offerCount: result.offers.length,
     quarantineCount: result.quarantines.length,
-    deletedRawCount: deleted.length,
+    deletedRawCount: prepared.deletedRawCount,
   };
 }
 
@@ -219,39 +232,27 @@ export async function reprocessStoredGlobusSnapshot(input: {
   >;
   rawSnapshots: Pick<RawPort, "read">;
 }) {
-  const previous = await input.ingestion.latestRetainedRetrieval(
-    GLOBUS_BRNO_SCOPE.key,
-  );
-  if (
-    !previous?.rawStorageKey ||
-    !previous.sourceUrl ||
-    !previous.retrievedAt ||
-    previous.httpStatus === undefined
-  )
-    throw new Error("GLOBUS_RAW_SNAPSHOT_UNAVAILABLE");
-  if (previous.sourceUrl !== GLOBUS_BRNO_SCOPE.sourceUrl) {
-    throw new Error("GLOBUS_RETAINED_SNAPSHOT_SCOPE_MISMATCH");
-  }
-  const html = await input.rawSnapshots.read(previous.rawStorageKey);
-  const result = processGlobusFeaturedSnapshot({
-    html,
-    httpStatus: previous.httpStatus,
-    retrievedAt: previous.retrievedAt,
-    etag: previous.etag,
-    lastModified: previous.lastModified,
-    productMappings: await input.ingestion.loadApprovedGlobusMappings(),
+  const productMappings = await input.ingestion.loadApprovedGlobusMappings();
+  return reprocessRetainedSnapshot<string, GlobusSnapshotResult>({
+    manifest: GLOBUS_CONNECTOR_MANIFEST,
+    scopeKey: GLOBUS_BRNO_SCOPE.key,
+    ingestion: {
+      latestRetainedRetrieval: (sourceScopeKey) =>
+        input.ingestion.latestRetainedRetrieval(sourceScopeKey),
+      persist: (result, options) =>
+        input.ingestion.persistGlobus(result, options),
+    },
+    rawSnapshots: input.rawSnapshots,
+    parse: ({ content: html, previous }) =>
+      processGlobusFeaturedSnapshot({
+        html,
+        httpStatus: previous.httpStatus,
+        retrievedAt: previous.retrievedAt,
+        etag: previous.etag,
+        lastModified: previous.lastModified,
+        productMappings,
+      }),
   });
-  if (result.retrieval.contentHash !== previous.contentHash) {
-    throw new Error("GLOBUS_RETAINED_SNAPSHOT_HASH_MISMATCH");
-  }
-  await input.ingestion.persistGlobus(result, {
-    rawStorageKey: previous.rawStorageKey,
-  });
-  return {
-    status: "reprocessed" as const,
-    offerCount: result.offers.length,
-    quarantineCount: result.quarantines.length,
-  };
 }
 
 async function processFetched(input: {
@@ -284,12 +285,4 @@ async function processFetched(input: {
     previousParserVersion: input.claim.previousParserVersion,
     productMappings: input.mappings,
   });
-}
-
-function parseCanonicalTimestamp(value: string) {
-  const parsed = new Date(value);
-  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== value) {
-    throw new Error("now must be a canonical ISO timestamp.");
-  }
-  return parsed;
 }

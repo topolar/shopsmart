@@ -132,7 +132,7 @@ describe("local Albert operation", () => {
     const outcome = await reprocessStoredAlbertSnapshot({
       kind: "supermarket",
       ingestion: {
-        latestRetrieval: vi.fn(async () => ({
+        latestRetainedRetrieval: vi.fn(async () => ({
           contentHash: "a".repeat(64),
           parserVersion: "albert-leaflet-v1",
           etag: '"pdf"',
@@ -170,6 +170,7 @@ describe("local Albert operation", () => {
       status: "reprocessed",
       offerCount: 0,
       quarantineCount: 0,
+      contentHash: "a".repeat(64),
     });
     expect(processSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -1,7 +1,7 @@
 import {
+  ALBERT_CONNECTOR_MANIFEST,
   ALBERT_HYPERMARKET_SCOPE,
   ALBERT_LEAFLET_INDEX_URL,
-  ALBERT_LEAFLET_PARSER_VERSION,
   type AlbertLeafletKind,
   type AlbertLeafletManifest,
   type AlbertProductMapping,
@@ -12,6 +12,12 @@ import {
   fetchAlbertResource,
   processAlbertLeafletSnapshot,
 } from "@shopsmart/connectors";
+
+import {
+  nextConnectorDueAt,
+  prepareConnectorRun,
+  reprocessRetainedSnapshot,
+} from "./connector-runtime.js";
 
 type ClaimedAlbertJob = Readonly<{
   id: string;
@@ -65,6 +71,8 @@ type OperationInput = Readonly<{
         key: string;
         status: "fetched" | "unchanged" | "quarantined";
         candidateCount: number;
+        offerCount: number;
+        quarantineCount: number;
         reasonCode: string | null;
       }>;
     }): Promise<void>;
@@ -107,12 +115,10 @@ type OperationInput = Readonly<{
   processSnapshot?: typeof processAlbertLeafletSnapshot;
 }>;
 
-const scopes = [ALBERT_SUPERMARKET_SCOPE, ALBERT_HYPERMARKET_SCOPE] as const;
-
 export async function reprocessStoredAlbertSnapshot(input: {
   kind: AlbertLeafletKind;
   ingestion: {
-    latestRetrieval(
+    latestRetainedRetrieval(
       sourceScopeKey: string,
     ): Promise<StoredAlbertRetrieval | null>;
     loadApprovedAlbertMappings(
@@ -136,82 +142,78 @@ export async function reprocessStoredAlbertSnapshot(input: {
     input.kind === "supermarket"
       ? ALBERT_SUPERMARKET_SCOPE
       : ALBERT_HYPERMARKET_SCOPE;
-  const previous = await input.ingestion.latestRetrieval(scope.key);
-  if (!previous?.rawStorageKey) {
-    throw new Error("ALBERT_RAW_SNAPSHOT_UNAVAILABLE");
-  }
-  const index = await (input.fetchResource ?? fetchAlbertResource)({
-    url: ALBERT_LEAFLET_INDEX_URL,
-    expected: "html",
-  });
-  if (!index.body || index.notModified) {
-    throw new Error("ALBERT_INDEX_BODY_MISSING");
-  }
-  const manifest = discoverAlbertLeaflets(
-    new TextDecoder().decode(index.body),
-  ).find(({ kind }) => kind === input.kind);
-  if (!manifest || manifest.pdfUrl !== previous.sourceUrl) {
-    throw new Error("ALBERT_RETAINED_SNAPSHOT_IS_NOT_CURRENT");
-  }
-  const pdfBytes = await input.rawSnapshots.readBinary(
-    previous.rawStorageKey,
-    "pdf",
+  let currentLeaflet: AlbertLeafletManifest | null = null;
+  const productMappings = await input.ingestion.loadApprovedAlbertMappings(
+    input.kind,
   );
-  const result = await (input.processSnapshot ?? processAlbertLeafletSnapshot)({
-    manifest,
-    pdfBytes,
-    httpStatus: previous.httpStatus,
-    retrievedAt: previous.retrievedAt,
-    etag: previous.etag,
-    lastModified: previous.lastModified,
-    previousContentHash: null,
-    previousParserVersion: null,
-    productMappings: await input.ingestion.loadApprovedAlbertMappings(
-      input.kind,
-    ),
+  return reprocessRetainedSnapshot<Uint8Array, AlbertSnapshotResult>({
+    manifest: ALBERT_CONNECTOR_MANIFEST,
+    scopeKey: scope.key,
+    ingestion: {
+      latestRetainedRetrieval: (sourceScopeKey) =>
+        input.ingestion.latestRetainedRetrieval(sourceScopeKey),
+      persist: (result, options) => {
+        if (!currentLeaflet) throw new Error("ALBERT_INDEX_BODY_MISSING");
+        return input.ingestion.persistAlbert(result, {
+          manifest: currentLeaflet,
+          rawStorageKey: options.rawStorageKey,
+        });
+      },
+    },
+    rawSnapshots: {
+      read: (storageKey) => input.rawSnapshots.readBinary(storageKey, "pdf"),
+    },
+    isSourceUrlAllowed: async (sourceUrl) => {
+      const index = await (input.fetchResource ?? fetchAlbertResource)({
+        url: ALBERT_LEAFLET_INDEX_URL,
+        expected: "html",
+      });
+      if (!index.body || index.notModified) {
+        throw new Error("ALBERT_INDEX_BODY_MISSING");
+      }
+      currentLeaflet =
+        discoverAlbertLeaflets(new TextDecoder().decode(index.body)).find(
+          ({ kind }) => kind === input.kind,
+        ) ?? null;
+      return currentLeaflet?.pdfUrl === sourceUrl;
+    },
+    parse: ({ content: pdfBytes, previous }) => {
+      if (!currentLeaflet) {
+        throw new Error("ALBERT_RETAINED_SNAPSHOT_IS_NOT_CURRENT");
+      }
+      return (input.processSnapshot ?? processAlbertLeafletSnapshot)({
+        manifest: currentLeaflet,
+        pdfBytes,
+        httpStatus: previous.httpStatus,
+        retrievedAt: previous.retrievedAt,
+        etag: previous.etag,
+        lastModified: previous.lastModified,
+        previousContentHash: null,
+        previousParserVersion: null,
+        productMappings,
+      });
+    },
   });
-  if (result.retrieval.contentHash !== previous.contentHash) {
-    throw new Error("ALBERT_RETAINED_SNAPSHOT_HASH_MISMATCH");
-  }
-  await input.ingestion.persistAlbert(result, {
-    manifest,
-    rawStorageKey: previous.rawStorageKey,
-  });
-  return {
-    status: "reprocessed" as const,
-    offerCount: result.offers.length,
-    quarantineCount: result.quarantines.length,
-  };
 }
 
 export async function runAlbertOperationOnce(input: OperationInput) {
-  const deleted = await input.rawSnapshots.purgeExpired(input.now);
-  await input.ingestion.markRawDeleted(deleted, input.now);
-  for (const scope of scopes) {
-    await input.jobs.register({
-      sourceScopeKey: scope.key,
-      requiredCoverageKeys: [scope.key],
-      dueAt: input.now,
-      expectedParserVersion: ALBERT_LEAFLET_PARSER_VERSION,
-      maxAttempts: 3,
-    });
-  }
-  const claims = (
-    await Promise.all(
-      scopes.map(async (scope) => {
-        const [claim] = await input.jobs.claimDue({
-          workerId: input.workerId,
-          now: input.now,
-          leaseSeconds: 30 * 60,
-          limit: 1,
-          sourceScopeKey: scope.key,
-        });
-        return claim ?? null;
-      }),
-    )
-  ).filter((claim): claim is ClaimedAlbertJob => claim !== null);
+  const prepared = await prepareConnectorRun({
+    manifest: ALBERT_CONNECTOR_MANIFEST,
+    now: input.now,
+    workerId: input.workerId,
+    jobs: input.jobs,
+    retention: {
+      purgeExpired: (now) => input.rawSnapshots.purgeExpired(now),
+      markRawDeleted: (storageKeys, deletedAt) =>
+        input.ingestion.markRawDeleted(storageKeys, deletedAt),
+    },
+  });
+  const claims = prepared.claims as ClaimedAlbertJob[];
   if (claims.length === 0) {
-    return { status: "not-due" as const, deletedRawCount: deleted.length };
+    return {
+      status: "not-due" as const,
+      deletedRawCount: prepared.deletedRawCount,
+    };
   }
 
   const fetchResource = input.fetchResource ?? fetchAlbertResource;
@@ -308,9 +310,11 @@ export async function runAlbertOperationOnce(input: OperationInput) {
         jobId: claim.id,
         workerId: input.workerId,
         completedAt: input.now,
-        nextDueAt: new Date(
-          Date.parse(input.now) + 12 * 60 * 60 * 1_000,
-        ).toISOString(),
+        nextDueAt: nextConnectorDueAt(
+          ALBERT_CONNECTOR_MANIFEST,
+          claim.sourceScopeKey,
+          input.now,
+        ),
         parserVersion: result.retrieval.parserVersion,
         contentHash: result.retrieval.contentHash,
         coverageItems: [
@@ -323,6 +327,8 @@ export async function runAlbertOperationOnce(input: OperationInput) {
                   ? "unchanged"
                   : "quarantined",
             candidateCount: result.offers.length + result.quarantines.length,
+            offerCount: result.offers.length,
+            quarantineCount: result.quarantines.length,
             reasonCode:
               result.status === "quarantined"
                 ? (result.quarantines[0]?.reasonCode ?? "PARSE_QUARANTINED")
@@ -352,7 +358,7 @@ export async function runAlbertOperationOnce(input: OperationInput) {
     scopeCount: completedScopes,
     offerCount,
     quarantineCount,
-    deletedRawCount: deleted.length,
+    deletedRawCount: prepared.deletedRawCount,
   };
 }
 

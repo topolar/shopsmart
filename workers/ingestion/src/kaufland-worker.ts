@@ -2,6 +2,7 @@ import {
   createKauflandNotModifiedResult,
   fetchKauflandStorePage,
   KauflandAccessError,
+  KAUFLAND_CONNECTOR_MANIFEST,
   KAUFLAND_PRAHA_VYPICH_SCOPE,
   KAUFLAND_STORE_PARSER_VERSION,
   processKauflandStoreSnapshot,
@@ -10,6 +11,11 @@ import {
   type KauflandSnapshotResult,
 } from "@shopsmart/connectors";
 import type { CoverageItemInput } from "@shopsmart/contracts";
+
+import {
+  connectorRateLimitUntil,
+  nextConnectorDueAt,
+} from "./connector-runtime.js";
 
 type ClaimedJob = Readonly<{
   id: string;
@@ -74,9 +80,6 @@ type RunClaimedKauflandJobInput = Readonly<{
   fetchPage?: typeof fetchKauflandStorePage;
 }>;
 
-const regularIntervalMilliseconds = 12 * 60 * 60 * 1_000;
-const minimumRateLimitBackoffMilliseconds = 6 * 60 * 60 * 1_000;
-
 export async function runClaimedKauflandJob(
   input: RunClaimedKauflandJobInput,
 ): Promise<KauflandSnapshotResult> {
@@ -99,9 +102,11 @@ export async function runClaimedKauflandJob(
     jobId: input.claim.id,
     workerId: input.workerId,
     completedAt: retrievedAt.toISOString(),
-    nextDueAt: new Date(
-      retrievedAt.getTime() + regularIntervalMilliseconds,
-    ).toISOString(),
+    nextDueAt: nextConnectorDueAt(
+      KAUFLAND_CONNECTOR_MANIFEST,
+      KAUFLAND_PRAHA_VYPICH_SCOPE.key,
+      retrievedAt.toISOString(),
+    ),
     parserVersion: result.retrieval.parserVersion,
     contentHash: result.retrieval.contentHash,
     coverageItems: [coverageItem(result)],
@@ -152,12 +157,14 @@ async function recordFailure(
   error: unknown,
 ): Promise<void> {
   if (error instanceof KauflandAccessError && error.code === "RATE_LIMITED") {
-    const minimumRetryAt =
-      failedAt.getTime() + minimumRateLimitBackoffMilliseconds;
-    const providerRetryAt = error.retryAt ? Date.parse(error.retryAt) : 0;
     await input.jobs.recordRateLimit(
       input.claim.id,
-      new Date(Math.max(minimumRetryAt, providerRetryAt)).toISOString(),
+      connectorRateLimitUntil(
+        KAUFLAND_CONNECTOR_MANIFEST,
+        KAUFLAND_PRAHA_VYPICH_SCOPE.key,
+        failedAt.toISOString(),
+        error.retryAt,
+      ),
     );
     return;
   }
@@ -240,6 +247,8 @@ function coverageItem(result: KauflandSnapshotResult): CoverageItemInput {
           ? "unchanged"
           : "quarantined",
     candidateCount: result.offers.length + result.quarantines.length,
+    offerCount: result.offers.length,
+    quarantineCount: result.quarantines.length,
     reasonCode:
       result.status === "quarantined"
         ? (result.quarantines[0]?.reasonCode ?? "INVALID_SOURCE_PAGE")

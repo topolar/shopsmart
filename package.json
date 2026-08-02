@@ -16,6 +16,7 @@
     "ingest:kaufland": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/kaufland-cli.ts run-once",
     "ingest:albert": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/albert-cli.ts run-once",
     "ingest:globus": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/globus-cli.ts run-once",
+    "connector": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/connector-cli.ts",
     "mapping:albert": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/albert-cli.ts mappings",
     "mapping:kaufland": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/kaufland-cli.ts mappings",
     "mapping:globus": "node --env-file-if-exists=.env --import tsx workers/ingestion/src/globus-cli.ts mappings",

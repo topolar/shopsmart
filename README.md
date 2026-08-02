@@ -70,6 +70,18 @@ pnpm smoke
 
 ## Další krok
 
+Všechny retailer konektory mají společný verzovaný manifest a operator runtime. Pro běžný provoz používejte jednotný vstup:
+
+```powershell
+pnpm connector list
+pnpm connector health
+pnpm connector run --connector kaufland
+pnpm connector reprocess --connector kaufland --scope kaufland:cz:praha-vypich:3300:physical-offers
+pnpm connector repair --connector kaufland --scope kaufland:cz:praha-vypich:3300:physical-offers --reason explicit-request
+```
+
+`list` vypíše schválené české scope, capabilities a provozní policy. `health` je read-only agregace jobu, posledního coverage manifestu, retrieval metadata a raw retention. `run` sdíleně zpracuje pouze due scope. `reprocess` použije hashově ověřený retained snapshot. `repair` pouze auditovaně naplánuje early refresh; neobchází rate limit ani ochrany zdroje. Retailer-specific `mapping:*` příkazy zůstávají pro explicitní schvalování produktové identity. Rozšiřovací a incidentní postup popisuje [`docs/CONNECTOR_OPERATIONS.md`](docs/CONNECTOR_OPERATIONS.md).
+
 První Kaufland shared-ingestion konektor lze lokálně spustit a jeho neurčené produkty explicitně mapovat:
 
 ```powershell
