@@ -15,7 +15,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { integrationDatabaseUrl } from "../../../tests/integration-database.js";
 
 import { buildApp } from "./app.js";
-import { createShopSmartAuth } from "./auth.js";
+import { createSyntheticFirebaseAuth } from "./auth-test-helpers.js";
 
 const databaseUrl = integrationDatabaseUrl();
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -24,23 +24,17 @@ const testCanonicalId = "018f5f70-7b5d-7a21-9f49-01b7f63a9411";
 
 describeWithDatabase("authenticated tenant onboarding", () => {
   let dataSource: ReturnType<typeof createAppDataSource> | undefined;
-  let authRuntime: ReturnType<typeof createShopSmartAuth> | undefined;
+  let authRuntime: ReturnType<typeof createSyntheticFirebaseAuth> | undefined;
   let app: Awaited<ReturnType<typeof buildApp>> | undefined;
 
   beforeAll(async () => {
     dataSource = createAppDataSource(databaseUrl);
     await dataSource.initialize();
     await dataSource.runMigrations();
-    authRuntime = createShopSmartAuth({
-      databaseUrl: databaseUrl!,
-      dataSource,
-      secret: "synthetic-integration-secret-32-characters-minimum",
-      baseURL: "http://localhost:3000",
-      trustedOrigins: ["http://localhost:3000"],
-      rateLimitEnabled: false,
-    });
+    authRuntime = createSyntheticFirebaseAuth(dataSource);
     app = await buildApp(new TypeOrmNormalizationStore(dataSource), {
       auth: authRuntime.auth,
+      publicUrl: "http://localhost:3000",
       onboardingStore: new TypeOrmOnboardingStore(dataSource),
       watchRuleStore: new TypeOrmWatchRuleApplicationStore(dataSource),
     });
@@ -68,7 +62,6 @@ describeWithDatabase("authenticated tenant onboarding", () => {
 
   afterAll(async () => {
     await app?.close();
-    await authRuntime?.close();
     if (dataSource?.isInitialized) {
       await clearSyntheticUsers(dataSource);
       await dataSource.destroy();
@@ -190,6 +183,25 @@ describeWithDatabase("authenticated tenant onboarding", () => {
     expect(response.json()).toMatchObject({ code: "TENANT_SCOPE_VIOLATION" });
   });
 
+  it("reuses one local user and tenant for repeated Firebase Google login", async () => {
+    if (!app || !dataSource) throw new Error("Test app was not initialized.");
+
+    const first = await register("integration-idempotent@example.invalid");
+    const second = await register("integration-idempotent@example.invalid");
+
+    expect(second.tenantId).toBe(first.tenantId);
+    const rows = (await dataSource.query(
+      `SELECT "firebaseUid", "tenantId" FROM "user" WHERE "email" = $1`,
+      ["integration-idempotent@example.invalid"],
+    )) as { firebaseUid: string; tenantId: string }[];
+    expect(rows).toEqual([
+      {
+        firebaseUid: "synthetic-google:integration-idempotent@example.invalid",
+        tenantId: first.tenantId,
+      },
+    ]);
+  });
+
   it("creates and lists a structured watch rule from persisted onboarding choices", async () => {
     if (!app) throw new Error("Test app was not initialized.");
     const account = await register("integration-a@example.invalid");
@@ -302,12 +314,12 @@ describeWithDatabase("authenticated tenant onboarding", () => {
     if (!app) throw new Error("Test app was not initialized.");
     const response = await app.inject({
       method: "POST",
-      url: "/api/auth/sign-up/email",
+      url: "/api/auth/session",
       headers: {
         "content-type": "application/json",
         origin: "http://localhost:3000",
       },
-      payload: { name: "Synthetic User", email, password: "Synt3tic-pass!" },
+      payload: { idToken: authRuntime?.idToken(email) },
     });
     expect(response.statusCode, response.body).toBe(200);
     const cookie = response.headers["set-cookie"];

@@ -16,7 +16,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { integrationDatabaseUrl } from "../../../tests/integration-database.js";
 
 import { buildApp } from "./app.js";
-import { createShopSmartAuth } from "./auth.js";
+import { createSyntheticFirebaseAuth } from "./auth-test-helpers.js";
 
 const databaseUrl = integrationDatabaseUrl();
 const describeWithDatabase = databaseUrl ? describe : describe.skip;
@@ -24,7 +24,7 @@ const sourceHash = "c".repeat(64);
 
 describeWithDatabase("authenticated AI-assist operator review API", () => {
   let dataSource: ReturnType<typeof createAppDataSource> | undefined;
-  let authRuntime: ReturnType<typeof createShopSmartAuth> | undefined;
+  let authRuntime: ReturnType<typeof createSyntheticFirebaseAuth> | undefined;
   let app: Awaited<ReturnType<typeof buildApp>> | undefined;
   let store: TypeOrmAiAssistStore | undefined;
 
@@ -33,16 +33,10 @@ describeWithDatabase("authenticated AI-assist operator review API", () => {
     await dataSource.initialize();
     await dataSource.runMigrations();
     store = new TypeOrmAiAssistStore(dataSource);
-    authRuntime = createShopSmartAuth({
-      databaseUrl: databaseUrl!,
-      dataSource,
-      secret: "synthetic-ai-review-secret-32-characters-minimum",
-      baseURL: "http://localhost:3000",
-      trustedOrigins: ["http://localhost:3000"],
-      rateLimitEnabled: false,
-    });
+    authRuntime = createSyntheticFirebaseAuth(dataSource);
     app = await buildApp(new TypeOrmNormalizationStore(dataSource), {
       auth: authRuntime.auth,
+      publicUrl: "http://localhost:3000",
       onboardingStore: new TypeOrmOnboardingStore(dataSource),
       aiAssistStore: store,
     });
@@ -86,7 +80,6 @@ describeWithDatabase("authenticated AI-assist operator review API", () => {
 
   afterAll(async () => {
     await app?.close();
-    await authRuntime?.close();
     if (dataSource?.isInitialized) {
       await cleanup(dataSource);
       await dataSource.destroy();
@@ -187,12 +180,12 @@ describeWithDatabase("authenticated AI-assist operator review API", () => {
     if (!app) throw new Error("Test app was not initialized.");
     const response = await app.inject({
       method: "POST",
-      url: "/api/auth/sign-up/email",
+      url: "/api/auth/session",
       headers: {
         "content-type": "application/json",
         origin: "http://localhost:3000",
       },
-      payload: { name: "Synthetic User", email, password: "Synt3tic-pass!" },
+      payload: { idToken: authRuntime?.idToken(email) },
     });
     expect(response.statusCode, response.body).toBe(200);
     const cookie = response.headers["set-cookie"];

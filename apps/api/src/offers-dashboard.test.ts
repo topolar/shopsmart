@@ -27,6 +27,7 @@ describe("GET /api/v1/tenants/:tenantId/offers", () => {
       { save: async () => never() },
       {
         auth: fakeAuth(tenantId),
+        publicUrl: "http://localhost:3000",
         onboardingStore: {} as never,
         dashboardStore: { list },
       },
@@ -52,6 +53,7 @@ describe("GET /api/v1/tenants/:tenantId/offers", () => {
       { save: async () => never() },
       {
         auth: fakeAuth(otherTenantId),
+        publicUrl: "http://localhost:3000",
         onboardingStore: {} as never,
         dashboardStore: {
           list: async () => {
@@ -76,13 +78,16 @@ describe("GET /api/v1/tenants/:tenantId/offers", () => {
 
 function fakeAuth(sessionTenantId: string): ShopSmartAuth {
   return {
-    handler: async () => new Response(null, { status: 404 }),
-    api: {
-      getSession: async () => ({
-        user: { id: "synthetic-user", tenantId: sessionTenantId },
-        session: { id: "synthetic-session" },
-      }),
-    },
+    getSession: async () => ({
+      user: {
+        id: "synthetic-user",
+        firebaseUid: "synthetic-firebase-user",
+        email: "synthetic@example.invalid",
+        name: "Synthetic User",
+        tenantId: sessionTenantId,
+        role: "user",
+      },
+    }),
   } as unknown as ShopSmartAuth;
 }
 

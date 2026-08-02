@@ -18,6 +18,9 @@ export const cs = {
   email: "E-mail",
   password: "Heslo (nejméně 12 znaků)",
   authError: "Přihlášení se nepodařilo.",
+  signInWithGoogle: "Přihlásit přes Google",
+  googleSignInOnly: "ShopSmart používá pouze bezpečné přihlášení přes Google.",
+  signOut: "Odhlásit se",
   onboardingTitle: "Lokalita a preference",
   localityPrivacy:
     "Stačí město, kraj a volitelně první tři číslice PSČ. Ulici ani přesnou adresu neukládáme.",

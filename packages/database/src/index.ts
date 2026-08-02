@@ -6,6 +6,7 @@ export * from "./matching-store.js";
 export * from "./matching-fanout-store.js";
 export * from "./normalization-record.js";
 export * from "./normalization-store.js";
+export * from "./firebase-identity-store.js";
 export * from "./notification-outbox.js";
 export * from "./offers-dashboard-store.js";
 export * from "./operator-store.js";

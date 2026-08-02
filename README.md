@@ -10,10 +10,11 @@ Součástí baseline je také ohraničený AI-assist candidate/review tok s
 deterministickou validací, TypeORM auditem a operátorským rozhraním. Živý model
 provider není nakonfigurovaný a AI kandidát nemá cestu k automatické publikaci.
 
-Repozitář obsahuje dokumentační a architektonický základ a testovaný TypeScript baseline: deterministickou normalizaci a tenant-scoped matching, Better Auth sessions, český onboarding, evidence-backed dashboard, candidate-first online stock gate, verzované Zod kontrakty, TypeORM/PostgreSQL persistence, transakční notification outbox, shared connector job leasing/health a Fastify + Next.js/Tailwind vertical slice.
+Repozitář obsahuje dokumentační a architektonický základ a testovaný TypeScript baseline: deterministickou normalizaci a tenant-scoped matching, Google-only Firebase Authentication se serverovou session, český onboarding, evidence-backed dashboard, candidate-first online stock gate, verzované Zod kontrakty, TypeORM/PostgreSQL persistence, transakční notification outbox, shared connector job leasing/health a Fastify + Next.js/Tailwind vertical slice.
 
 - [`PLAN.md`](PLAN.md) — podrobný plán, praktická zjištění z osobního pilotu, doménový model, architektura, roadmapa a hranice AI.
 - [`docs/TECHNICAL_ARCHITECTURE.md`](docs/TECHNICAL_ARCHITECTURE.md) — zvolený local-first stack, porty, Docker/PostgreSQL, Cloudflare Tunnel a cesta k produkčnímu hostingu.
+- [`docs/FIREBASE_AUTH.md`](docs/FIREBASE_AUTH.md) — reprodukovatelné Google-only Firebase Auth nastavení, lokální Admin credential a Cloudflare hostname.
 - [`docs/CONNECTOR_OPERATIONS.md`](docs/CONNECTOR_OPERATIONS.md) — PostgreSQL leasing, TTL/early refresh, coverage manifesty a provozní stavy connectorů.
 - [`docs/decisions/0004-first-retailer-source.md`](docs/decisions/0004-first-retailer-source.md) — první český source scope: Kaufland Praha-Vypich, povolené cesty, rate limit, retention a fail-closed pravidla.
 - [`docs/decisions/0005-albert-leaflet-source.md`](docs/decisions/0005-albert-leaflet-source.md) — oficiální české Albert supermarket/hypermarket letáky, PDF extrakce, rate limit a fail-closed pravidla.
@@ -39,7 +40,7 @@ Požadavky:
 - pnpm `11.10.0`;
 - Docker s Docker Compose.
 
-Zkopírujte `.env.example` do ignorovaného `.env`, nahraďte oba password placeholdery stejným náhodným lokálním heslem a nastavte nejméně 32znakový náhodný `BETTER_AUTH_SECRET`. Potom:
+Zkopírujte `.env.example` do ignorovaného `.env`, nahraďte oba password placeholdery stejným náhodným lokálním heslem a doplňte Firebase Web App hodnoty a cestu k lokálnímu Admin credentialu podle [`docs/FIREBASE_AUTH.md`](docs/FIREBASE_AUTH.md). Potom:
 
 ```powershell
 pnpm install

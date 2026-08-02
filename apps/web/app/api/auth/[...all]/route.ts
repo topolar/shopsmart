@@ -27,4 +27,4 @@ async function handler(request: Request) {
   });
 }
 
-export { handler as GET, handler as POST };
+export { handler as DELETE, handler as GET, handler as POST };

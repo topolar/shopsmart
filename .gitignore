@@ -4,6 +4,8 @@
 !.env.example
 *.pem
 *.key
+/firebase.json
+/firebase-debug.log
 
 # Python
 __pycache__/

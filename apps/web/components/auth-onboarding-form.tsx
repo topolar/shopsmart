@@ -12,14 +12,12 @@ import {
   type InputHTMLAttributes,
 } from "react";
 
+import { createGoogleSession } from "../lib/firebase-auth";
 import { cs } from "../messages/cs";
 import { OffersDashboard } from "./offers-dashboard";
 import { WatchRuleForm } from "./watch-rule-form";
 
-type AuthMode = "sign-up" | "sign-in";
-
 export function AuthOnboardingForm() {
-  const [mode, setMode] = useState<AuthMode>("sign-up");
   const [tenantId, setTenantId] = useState<string>();
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -28,7 +26,7 @@ export function AuthOnboardingForm() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/auth/get-session", {
+    void fetch("/api/auth/session", {
       cache: "no-store",
       signal: controller.signal,
     })
@@ -61,32 +59,28 @@ export function AuthOnboardingForm() {
     return () => controller.abort();
   }, [tenantId, preferencesRevision]);
 
-  async function authenticate(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function authenticate() {
     setPending(true);
     setMessage(undefined);
-    const data = new FormData(event.currentTarget);
-    const payload = {
-      email: data.get("email"),
-      password: data.get("password"),
-      ...(mode === "sign-up" ? { name: data.get("name") } : {}),
-    };
-    const response = await fetch(`/api/auth/${mode}/email`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const result = (await response.json()) as {
-      user?: { tenantId?: string };
-      message?: string;
-    };
-    if (!response.ok || !result.user?.tenantId) {
-      setMessage(result.message ?? cs.authError);
+    try {
+      const result = await createGoogleSession();
+      setTenantId(result.user.tenantId);
+    } catch {
+      setMessage(cs.authError);
+    } finally {
       setPending(false);
-      return;
     }
-    setTenantId(result.user.tenantId);
-    setPending(false);
+  }
+
+  async function signOut() {
+    setPending(true);
+    try {
+      await fetch("/api/auth/session", { method: "DELETE" });
+      setTenantId(undefined);
+      setWatchOptions(undefined);
+    } finally {
+      setPending(false);
+    }
   }
 
   async function saveOnboarding(event: FormEvent<HTMLFormElement>) {
@@ -127,6 +121,16 @@ export function AuthOnboardingForm() {
   if (tenantId) {
     return (
       <div className="grid gap-8">
+        <div className="flex justify-end">
+          <button
+            className="rounded-full border border-emerald-800 px-3 py-1 text-sm"
+            disabled={pending}
+            onClick={() => void signOut()}
+            type="button"
+          >
+            {cs.signOut}
+          </button>
+        </div>
         <form className="grid gap-4" key="onboarding" onSubmit={saveOnboarding}>
           <h2 className="text-2xl font-bold">{cs.onboardingTitle}</h2>
           <p className="text-sm text-emerald-950/70">{cs.localityPrivacy}</p>
@@ -201,40 +205,23 @@ export function AuthOnboardingForm() {
   }
 
   return (
-    <form className="grid gap-4" key="authentication" onSubmit={authenticate}>
-      <div className="flex gap-2">
-        {(["sign-up", "sign-in"] as const).map((candidate) => (
-          <button
-            className="rounded-full border border-emerald-800 px-3 py-1 text-sm"
-            key={candidate}
-            onClick={() => setMode(candidate)}
-            type="button"
-          >
-            {candidate === "sign-up" ? cs.signUp : cs.signIn}
-          </button>
-        ))}
-      </div>
-      <h2 className="text-2xl font-bold">
-        {mode === "sign-up" ? cs.createAccount : cs.signIn}
-      </h2>
-      {mode === "sign-up" ? <Field label={cs.name} name="name" /> : null}
-      <Field label={cs.email} name="email" type="email" />
-      <Field
-        label={cs.password}
-        name="password"
-        type="password"
-        minLength={12}
-      />
-      <Submit
-        pending={pending}
-        label={mode === "sign-up" ? cs.signUp : cs.signIn}
-      />
+    <div className="grid gap-4" key="authentication">
+      <h2 className="text-2xl font-bold">{cs.signIn}</h2>
+      <p className="text-sm text-emerald-950/70">{cs.googleSignInOnly}</p>
+      <button
+        className="rounded-lg bg-emerald-800 px-4 py-3 font-semibold text-white disabled:opacity-60"
+        disabled={pending}
+        onClick={() => void authenticate()}
+        type="button"
+      >
+        {pending ? cs.pending : cs.signInWithGoogle}
+      </button>
       {message ? (
         <p className="text-red-700" role="alert">
           {message}
         </p>
       ) : null}
-    </form>
+    </div>
   );
 }
 

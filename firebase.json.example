@@ -1,0 +1,16 @@
+{
+  "auth": {
+    "providers": {
+      "anonymous": false,
+      "emailPassword": false,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "ShopSmart",
+        "supportEmail": "support@example.invalid",
+        "authorizedRedirectUris": [
+          "http://127.0.0.1",
+          "https://replace-with-your-public-domain.example"
+        ]
+      }
+    }
+  }
+}

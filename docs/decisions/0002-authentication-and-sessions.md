@@ -1,6 +1,6 @@
 # ADR 0002: Better Auth with database-backed sessions
 
-- Status: accepted for the local MVP baseline
+- Status: superseded by [ADR 0007](0007-firebase-google-authentication.md)
 - Date: 2026-08-01
 - Scope: registration, email/password sign-in, session validation, and tenant authorization
 

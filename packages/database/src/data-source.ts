@@ -14,6 +14,7 @@ import { SeedInitialCzechCatalog20260801161000 } from "./migrations/202608011610
 import { CreateAiAssist20260801170000 } from "./migrations/20260801170000-create-ai-assist.js";
 import { AddOperatorRole20260801171000 } from "./migrations/20260801171000-add-operator-role.js";
 import { StrengthenAiAssistCacheKey20260801172000 } from "./migrations/20260801172000-strengthen-ai-assist-cache-key.js";
+import { AddFirebaseIdentity20260802120000 } from "./migrations/20260802120000-add-firebase-identity.js";
 import {
   aiAssistCacheRecordSchema,
   aiAssistFailureRecordSchema,
@@ -108,6 +109,7 @@ export function createAppDataSource(
       CreateAiAssist20260801170000,
       AddOperatorRole20260801171000,
       StrengthenAiAssistCacheKey20260801172000,
+      AddFirebaseIdentity20260802120000,
     ],
     migrationsTableName: "shopsmart_migrations",
   });

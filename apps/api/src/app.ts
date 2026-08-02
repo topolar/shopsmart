@@ -1,3 +1,4 @@
+import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
 import {
   jsonSchemaTransform,
@@ -38,13 +39,17 @@ import {
   normalizeUnitPrice,
 } from "@shopsmart/domain";
 import Fastify from "fastify";
-import { fromNodeHeaders } from "better-auth/node";
 import { z } from "zod/v4";
 
-import type { ShopSmartAuth } from "./auth.js";
+import {
+  AuthBoundaryError,
+  sessionCookieHeader,
+  type ShopSmartAuth,
+} from "./auth.js";
 
 type AppDependencies = Readonly<{
   auth: ShopSmartAuth;
+  publicUrl: string;
   onboardingStore: TypeOrmOnboardingStore;
   dashboardStore?: OffersDashboardStore;
   aiAssistStore?: TypeOrmAiAssistStore;
@@ -68,39 +73,78 @@ export async function buildApp(
     },
     transform: jsonSchemaTransform,
   });
+  await app.register(rateLimit, { global: false });
 
   const typedApp = app.withTypeProvider<ZodTypeProvider>();
 
   typedApp.get("/health", async () => ({ status: "ok" }));
 
   if (dependencies) {
-    typedApp.route({
-      method: ["GET", "POST"],
-      url: "/api/auth/*",
-      async handler(request, reply) {
-        const origin = request.headers.origin ?? "http://127.0.0.1";
-        const authRequest = new Request(new URL(request.url, origin), {
-          method: request.method,
-          headers: fromNodeHeaders(request.headers),
-          ...(!["GET", "HEAD"].includes(request.method) && request.body
-            ? { body: JSON.stringify(request.body) }
-            : {}),
-        });
-        const response = await dependencies.auth.handler(authRequest);
+    const secureCookie = new URL(dependencies.publicUrl).protocol === "https:";
 
-        response.headers.forEach((value, name) => {
-          if (name !== "set-cookie") reply.header(name, value);
+    typedApp.get("/api/auth/session", async (request, reply) => {
+      const session = await dependencies.auth.getSession(
+        request.headers.cookie,
+      );
+      if (!session) {
+        return reply.code(401).send({
+          code: "UNAUTHENTICATED",
+          message: "A valid session is required.",
         });
-        const cookies = response.headers.getSetCookie();
-        if (cookies.length > 0) reply.header("set-cookie", cookies);
-        const body = await response.text();
-        reply.code(response.status);
-        return response.headers
-          .get("content-type")
-          ?.includes("application/json")
-          ? JSON.parse(body)
-          : body;
+      }
+      return reply.code(200).send(session);
+    });
+
+    typedApp.post(
+      "/api/auth/session",
+      {
+        config: { rateLimit: { max: 20, timeWindow: "1 minute" } },
+        schema: { body: z.object({ idToken: z.string().min(1).max(8192) }) },
       },
+      async (request, reply) => {
+        if (!isTrustedOrigin(request.headers.origin, dependencies.publicUrl)) {
+          return reply.code(403).send({
+            code: "UNTRUSTED_ORIGIN",
+            message: "The request origin is not trusted.",
+          });
+        }
+        try {
+          const session = await dependencies.auth.createSession(
+            request.body.idToken,
+          );
+          reply.header(
+            "set-cookie",
+            sessionCookieHeader(session.sessionCookie, {
+              secure: secureCookie,
+            }),
+          );
+          return reply.code(200).send({ user: session.user });
+        } catch (error) {
+          const code =
+            error instanceof AuthBoundaryError
+              ? error.code
+              : "INVALID_ID_TOKEN";
+          return reply.code(401).send({
+            code,
+            message: "Google sign-in could not be verified.",
+          });
+        }
+      },
+    );
+
+    typedApp.delete("/api/auth/session", async (request, reply) => {
+      if (!isTrustedOrigin(request.headers.origin, dependencies.publicUrl)) {
+        return reply.code(403).send({
+          code: "UNTRUSTED_ORIGIN",
+          message: "The request origin is not trusted.",
+        });
+      }
+      await dependencies.auth.revokeSession(request.headers.cookie);
+      reply.header(
+        "set-cookie",
+        sessionCookieHeader("", { secure: secureCookie, clear: true }),
+      );
+      return reply.code(204).send();
     });
 
     typedApp.put(
@@ -117,9 +161,9 @@ export async function buildApp(
         },
       },
       async (request, reply) => {
-        const session = await dependencies.auth.api.getSession({
-          headers: fromNodeHeaders(request.headers),
-        });
+        const session = await dependencies.auth.getSession(
+          request.headers.cookie,
+        );
         if (!session) {
           return reply.code(401).send({
             code: "UNAUTHENTICATED",
@@ -157,9 +201,9 @@ export async function buildApp(
           },
         },
         async (request, reply) => {
-          const session = await dependencies.auth.api.getSession({
-            headers: fromNodeHeaders(request.headers),
-          });
+          const session = await dependencies.auth.getSession(
+            request.headers.cookie,
+          );
           if (!session) {
             return reply.code(401).send({
               code: "UNAUTHENTICATED",
@@ -193,9 +237,9 @@ export async function buildApp(
           },
         },
         async (request, reply) => {
-          const session = await dependencies.auth.api.getSession({
-            headers: fromNodeHeaders(request.headers),
-          });
+          const session = await dependencies.auth.getSession(
+            request.headers.cookie,
+          );
           if (!session) {
             return reply.code(401).send({
               code: "UNAUTHENTICATED",
@@ -242,9 +286,9 @@ export async function buildApp(
           },
         },
         async (request, reply) => {
-          const session = await dependencies.auth.api.getSession({
-            headers: fromNodeHeaders(request.headers),
-          });
+          const session = await dependencies.auth.getSession(
+            request.headers.cookie,
+          );
           if (!session) {
             return reply.code(401).send({
               code: "UNAUTHENTICATED",
@@ -279,9 +323,9 @@ export async function buildApp(
           },
         },
         async (request, reply) => {
-          const session = await dependencies.auth.api.getSession({
-            headers: fromNodeHeaders(request.headers),
-          });
+          const session = await dependencies.auth.getSession(
+            request.headers.cookie,
+          );
           if (!session) {
             return reply.code(401).send({
               code: "UNAUTHENTICATED",
@@ -315,9 +359,9 @@ export async function buildApp(
           },
         },
         async (request, reply) => {
-          const session = await dependencies.auth.api.getSession({
-            headers: fromNodeHeaders(request.headers),
-          });
+          const session = await dependencies.auth.getSession(
+            request.headers.cookie,
+          );
           if (!session) {
             return reply.code(401).send({
               code: "UNAUTHENTICATED",
@@ -351,9 +395,9 @@ export async function buildApp(
           },
         },
         async (request, reply) => {
-          const session = await dependencies.auth.api.getSession({
-            headers: fromNodeHeaders(request.headers),
-          });
+          const session = await dependencies.auth.getSession(
+            request.headers.cookie,
+          );
           if (!session) {
             return reply.code(401).send({
               code: "UNAUTHENTICATED",
@@ -444,4 +488,13 @@ const aiReviewConflictCodes = [
 function aiReviewConflictCode(error: unknown) {
   if (!(error instanceof Error)) return null;
   return aiReviewConflictCodes.find((code) => code === error.message) ?? null;
+}
+
+function isTrustedOrigin(origin: string | undefined, publicUrl: string) {
+  if (!origin) return false;
+  try {
+    return new URL(origin).origin === new URL(publicUrl).origin;
+  } catch {
+    return false;
+  }
 }
