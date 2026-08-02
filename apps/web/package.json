@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "next build",
+    "build": "node load-root-env.mjs build",
     "dev": "node load-root-env.mjs dev --hostname 127.0.0.1 --port 3310",
     "start": "node load-root-env.mjs start --hostname 127.0.0.1 --port 3310",
     "typecheck": "tsc --noEmit"
