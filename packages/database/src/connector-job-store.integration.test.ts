@@ -148,6 +148,29 @@ describeWithDatabase("shared connector job operations", () => {
     });
   });
 
+  it("requests an audited repair by stable source scope key", async () => {
+    if (!store) throw new Error("Store was not initialized.");
+    await store.register({
+      sourceScopeKey: scopeKey,
+      requiredCoverageKeys: [scopeKey],
+      dueAt: "2026-08-03T00:00:00.000Z",
+      expectedParserVersion: "synthetic-v1",
+      maxAttempts: 3,
+    });
+
+    await expect(
+      store.requestEarlyRefreshByScope(
+        scopeKey,
+        "explicit-request",
+        "2026-08-02T12:00:00.000Z",
+      ),
+    ).resolves.toBeUndefined();
+    await expect(store.health(scopeKey)).resolves.toMatchObject({
+      status: "idle",
+      dueAt: "2026-08-02T12:00:00.000Z",
+    });
+  });
+
   it("models rate limits, deterministic retry, parser drift, and dead letter", async () => {
     if (!store) throw new Error("Store was not initialized.");
     const job = await store.register({

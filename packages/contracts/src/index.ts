@@ -1,6 +1,7 @@
 export * from "./ai-assist";
 export * from "./dashboard";
 export * from "./connector-operations";
+export * from "./connector-runtime";
 export * from "./offer";
 export * from "./onboarding";
 export * from "./notification";

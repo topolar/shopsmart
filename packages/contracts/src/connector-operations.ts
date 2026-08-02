@@ -20,6 +20,8 @@ export const coverageItemSchema = z.object({
   key: z.string().trim().min(1).max(160),
   status: coverageItemStatusSchema,
   candidateCount: z.number().int().nonnegative(),
+  offerCount: z.number().int().nonnegative().default(0),
+  quarantineCount: z.number().int().nonnegative().default(0),
   reasonCode: z.string().trim().min(1).max(120).nullable().default(null),
 });
 

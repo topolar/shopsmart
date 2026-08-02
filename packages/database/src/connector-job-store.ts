@@ -501,6 +501,18 @@ export class TypeOrmConnectorJobStore {
     });
   }
 
+  async requestEarlyRefreshByScope(
+    sourceScopeKey: string,
+    trigger: EarlyRefreshTrigger,
+    requestedAt: string,
+  ): Promise<void> {
+    const job = await this.dataSource
+      .getRepository(ConnectorJobRecord)
+      .findOneBy({ sourceScopeKey });
+    if (!job) throw new Error("UNKNOWN_CONNECTOR_SCOPE");
+    await this.requestEarlyRefresh(job.id, trigger, requestedAt);
+  }
+
   async saveStaticContext(input: {
     sourceScopeKey: string;
     contextKey: string;

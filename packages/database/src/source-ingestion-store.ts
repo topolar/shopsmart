@@ -214,6 +214,7 @@ export class TypeOrmSourceIngestionStore {
           sourceUrl: snapshot.sourceUrl,
           retrievedAt: snapshot.retrievedAt.toISOString(),
           httpStatus: snapshot.httpStatus,
+          rawDeleteAt: snapshot.rawDeleteAt.toISOString(),
         }
       : null;
   }
@@ -240,6 +241,7 @@ export class TypeOrmSourceIngestionStore {
           sourceUrl: snapshot.sourceUrl,
           retrievedAt: snapshot.retrievedAt.toISOString(),
           httpStatus: snapshot.httpStatus,
+          rawDeleteAt: snapshot.rawDeleteAt.toISOString(),
         }
       : null;
   }

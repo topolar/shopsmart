@@ -1,6 +1,6 @@
 import {
   KAUFLAND_PRAHA_VYPICH_SCOPE,
-  KAUFLAND_STORE_PARSER_VERSION,
+  KAUFLAND_CONNECTOR_MANIFEST,
   type KauflandFetchResult,
   type KauflandProductMapping,
   type KauflandSnapshotResult,
@@ -8,9 +8,10 @@ import {
 } from "@shopsmart/connectors";
 
 import {
-  purgeExpiredKauflandSnapshots,
-  runClaimedKauflandJob,
-} from "./kaufland-worker.js";
+  prepareConnectorRun,
+  reprocessRetainedSnapshot,
+} from "./connector-runtime.js";
+import { runClaimedKauflandJob } from "./kaufland-worker.js";
 
 type ClaimedKauflandJob = Readonly<{
   id: string;
@@ -73,26 +74,23 @@ type OperationInput = Readonly<{
 }>;
 
 export async function runKauflandOperationOnce(input: OperationInput) {
-  const deletedRawCount = await purgeExpiredKauflandSnapshots({
+  const prepared = await prepareConnectorRun({
+    manifest: KAUFLAND_CONNECTOR_MANIFEST,
     now: input.now,
-    rawSnapshots: input.rawSnapshots,
-    ingestion: input.ingestion,
-  });
-  await input.jobs.register({
-    sourceScopeKey: KAUFLAND_PRAHA_VYPICH_SCOPE.key,
-    requiredCoverageKeys: [KAUFLAND_PRAHA_VYPICH_SCOPE.key],
-    dueAt: input.now,
-    expectedParserVersion: KAUFLAND_STORE_PARSER_VERSION,
-    maxAttempts: 3,
-  });
-  const [claim] = await input.jobs.claimDue({
     workerId: input.workerId,
-    now: input.now,
-    leaseSeconds: 15 * 60,
-    limit: 1,
-    sourceScopeKey: KAUFLAND_PRAHA_VYPICH_SCOPE.key,
+    jobs: input.jobs,
+    retention: {
+      purgeExpired: (now) => input.rawSnapshots.purgeExpired(now),
+      markRawDeleted: (storageKeys, deletedAt) =>
+        input.ingestion.markRawDeleted(storageKeys, deletedAt),
+    },
   });
-  if (!claim) return { status: "not-due" as const, deletedRawCount };
+  const [claim] = prepared.claims;
+  if (!claim)
+    return {
+      status: "not-due" as const,
+      deletedRawCount: prepared.deletedRawCount,
+    };
 
   const productMappings = await input.ingestion.loadApprovedKauflandMappings();
   const result = await runClaimedKauflandJob({
@@ -109,7 +107,7 @@ export async function runKauflandOperationOnce(input: OperationInput) {
     status: result.status,
     offerCount: result.offers.length,
     quarantineCount: result.quarantines.length,
-    deletedRawCount,
+    deletedRawCount: prepared.deletedRawCount,
   };
 }
 
@@ -128,34 +126,20 @@ export async function reprocessStoredKauflandSnapshot(input: {
     read(storageKey: string): Promise<string>;
   }>;
 }) {
-  const previous = await input.ingestion.latestRetainedRetrieval(
-    KAUFLAND_PRAHA_VYPICH_SCOPE.key,
-  );
-  if (!previous?.rawStorageKey) {
-    throw new Error("KAUFLAND_RAW_SNAPSHOT_UNAVAILABLE");
-  }
-  if (previous.sourceUrl !== KAUFLAND_PRAHA_VYPICH_SCOPE.sourceUrl) {
-    throw new Error("KAUFLAND_RETAINED_SNAPSHOT_SCOPE_MISMATCH");
-  }
-  const html = await input.rawSnapshots.read(previous.rawStorageKey);
-  const result = processKauflandStoreSnapshot({
-    html,
-    httpStatus: previous.httpStatus,
-    retrievedAt: previous.retrievedAt,
-    etag: previous.etag,
-    lastModified: previous.lastModified,
-    productMappings: await input.ingestion.loadApprovedKauflandMappings(),
+  const productMappings = await input.ingestion.loadApprovedKauflandMappings();
+  return reprocessRetainedSnapshot<string, KauflandSnapshotResult>({
+    manifest: KAUFLAND_CONNECTOR_MANIFEST,
+    scopeKey: KAUFLAND_PRAHA_VYPICH_SCOPE.key,
+    ingestion: input.ingestion,
+    rawSnapshots: input.rawSnapshots,
+    parse: ({ content: html, previous }) =>
+      processKauflandStoreSnapshot({
+        html,
+        httpStatus: previous.httpStatus,
+        retrievedAt: previous.retrievedAt,
+        etag: previous.etag,
+        lastModified: previous.lastModified,
+        productMappings,
+      }),
   });
-  if (result.retrieval.contentHash !== previous.contentHash) {
-    throw new Error("KAUFLAND_RETAINED_SNAPSHOT_HASH_MISMATCH");
-  }
-  await input.ingestion.persist(result, {
-    rawStorageKey: previous.rawStorageKey,
-  });
-  return {
-    status: "reprocessed" as const,
-    offerCount: result.offers.length,
-    quarantineCount: result.quarantines.length,
-    contentHash: result.retrieval.contentHash,
-  };
 }
