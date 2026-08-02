@@ -75,11 +75,12 @@ První Kaufland shared-ingestion konektor lze lokálně spustit a jeho neurčen�
 ```powershell
 pnpm ingest:kaufland
 pnpm mapping:kaufland list
+pnpm mapping:kaufland reprocess
 pnpm mapping:kaufland classes
-pnpm mapping:kaufland approve --candidate <candidate-uuid> --canonical <class-uuid> --reviewer local-operator --attributes '{"state":"fresh"}'
+pnpm mapping:kaufland approve --candidate <candidate-uuid> --canonical <class-uuid> --reviewer local-operator --attribute state=fresh
 ```
 
-`ingest:kaufland` respektuje sdílený due time; nespouštějte ruční opakování uvnitř šestihodinového minima z ADR 0004. Raw HTML zůstává pouze v ignorovaném `SHOPSMART_RAW_SNAPSHOT_DIR` a po 72 hodinách se maže. Výstup příkazů obsahuje jen agregáty nebo review metadata, ne raw obsah.
+`ingest:kaufland` respektuje sdílený due time; nespouštějte ruční opakování uvnitř šestihodinového minima z ADR 0004. Raw HTML zůstává pouze v ignorovaném `SHOPSMART_RAW_SNAPSHOT_DIR` a po 72 hodinách se maže. `--attribute key=value` lze zopakovat pro více atributů a na PowerShellu nevyžaduje JSON quoting. Schválení i explicitní `reprocess` hashově ověří a znovu zpracují nejnovější uchovaný HTML snapshot bez retailer requestu. Výstup příkazů obsahuje jen agregáty nebo review metadata, ne raw obsah.
 
 Albert konektor sdíleně obsluhuje oba české typy letáku a zůstává v TypeScriptu:
 

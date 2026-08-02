@@ -3,6 +3,8 @@ import {
   KAUFLAND_STORE_PARSER_VERSION,
   type KauflandFetchResult,
   type KauflandProductMapping,
+  type KauflandSnapshotResult,
+  processKauflandStoreSnapshot,
 } from "@shopsmart/connectors";
 
 import {
@@ -16,6 +18,17 @@ type ClaimedKauflandJob = Readonly<{
   leaseOwner: string;
   previousContentHash: string | null;
   previousParserVersion: string | null;
+}>;
+
+type StoredKauflandRetrieval = Readonly<{
+  contentHash: string;
+  parserVersion: string;
+  etag: string | null;
+  lastModified: string | null;
+  rawStorageKey: string | null;
+  sourceUrl: string;
+  retrievedAt: string;
+  httpStatus: number;
 }>;
 
 type OperationInput = Readonly<{
@@ -97,5 +110,52 @@ export async function runKauflandOperationOnce(input: OperationInput) {
     offerCount: result.offers.length,
     quarantineCount: result.quarantines.length,
     deletedRawCount,
+  };
+}
+
+export async function reprocessStoredKauflandSnapshot(input: {
+  ingestion: Readonly<{
+    latestRetainedRetrieval(
+      sourceScopeKey: string,
+    ): Promise<StoredKauflandRetrieval | null>;
+    loadApprovedKauflandMappings(): Promise<readonly KauflandProductMapping[]>;
+    persist(
+      result: KauflandSnapshotResult,
+      options: { rawStorageKey: string | null },
+    ): Promise<unknown>;
+  }>;
+  rawSnapshots: Readonly<{
+    read(storageKey: string): Promise<string>;
+  }>;
+}) {
+  const previous = await input.ingestion.latestRetainedRetrieval(
+    KAUFLAND_PRAHA_VYPICH_SCOPE.key,
+  );
+  if (!previous?.rawStorageKey) {
+    throw new Error("KAUFLAND_RAW_SNAPSHOT_UNAVAILABLE");
+  }
+  if (previous.sourceUrl !== KAUFLAND_PRAHA_VYPICH_SCOPE.sourceUrl) {
+    throw new Error("KAUFLAND_RETAINED_SNAPSHOT_SCOPE_MISMATCH");
+  }
+  const html = await input.rawSnapshots.read(previous.rawStorageKey);
+  const result = processKauflandStoreSnapshot({
+    html,
+    httpStatus: previous.httpStatus,
+    retrievedAt: previous.retrievedAt,
+    etag: previous.etag,
+    lastModified: previous.lastModified,
+    productMappings: await input.ingestion.loadApprovedKauflandMappings(),
+  });
+  if (result.retrieval.contentHash !== previous.contentHash) {
+    throw new Error("KAUFLAND_RETAINED_SNAPSHOT_HASH_MISMATCH");
+  }
+  await input.ingestion.persist(result, {
+    rawStorageKey: previous.rawStorageKey,
+  });
+  return {
+    status: "reprocessed" as const,
+    offerCount: result.offers.length,
+    quarantineCount: result.quarantines.length,
+    contentHash: result.retrieval.contentHash,
   };
 }

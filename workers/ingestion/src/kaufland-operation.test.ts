@@ -1,6 +1,11 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
-import { runKauflandOperationOnce } from "./kaufland-operation.js";
+import {
+  reprocessStoredKauflandSnapshot,
+  runKauflandOperationOnce,
+} from "./kaufland-operation.js";
 
 describe("local Kaufland operation", () => {
   it("purges retention, claims only the shared scope, loads approved mappings, and reports aggregates", async () => {
@@ -66,6 +71,51 @@ describe("local Kaufland operation", () => {
       quarantineCount: 0,
       deletedRawCount: 0,
     });
+  });
+
+  it("reprocesses the newest retained hash-verified HTML without fetching", async () => {
+    const contentHash = createHash("sha256")
+      .update(syntheticPage)
+      .digest("hex");
+    const ingestion = {
+      latestRetainedRetrieval: vi.fn(async () => ({
+        contentHash,
+        parserVersion: "kaufland-store-v1",
+        etag: '"synthetic"',
+        lastModified: null,
+        rawStorageKey: `1785844800000-${contentHash}.html`,
+        sourceUrl:
+          "https://prodejny.kaufland.cz/aktualne/servis/prodejna/praha-vypich-3300.html",
+        retrievedAt: "2026-08-01T12:00:00.000Z",
+        httpStatus: 200,
+      })),
+      loadApprovedKauflandMappings: vi.fn(async () => [
+        {
+          externalId: "1001",
+          canonicalProductClassId: "40c60b15-c214-4603-8862-750c1811460b",
+          comparisonUnit: "kilogram" as const,
+          variantAttributes: { preparation: "fresh" },
+        },
+      ]),
+      persist: vi.fn(async () => ({ snapshotId: "snapshot-2" })),
+    };
+    const rawSnapshots = { read: vi.fn(async () => syntheticPage) };
+
+    await expect(
+      reprocessStoredKauflandSnapshot({ ingestion, rawSnapshots }),
+    ).resolves.toEqual({
+      status: "reprocessed",
+      offerCount: 1,
+      quarantineCount: 0,
+      contentHash,
+    });
+    expect(rawSnapshots.read).toHaveBeenCalledWith(
+      `1785844800000-${contentHash}.html`,
+    );
+    expect(ingestion.persist).toHaveBeenCalledWith(
+      expect.objectContaining({ offers: [expect.any(Object)] }),
+      { rawStorageKey: `1785844800000-${contentHash}.html` },
+    );
   });
 });
 
